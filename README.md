@@ -16,17 +16,17 @@ A tiny http client for nodejs & browser
 $ npm install tinyget --save
 ```
 
-Or, install via `[webmodules](https://github.com/attrs/webmodules)`
+Or, via [`webmodules`](https://github.com/attrs/webmodules)
 ```sh
 $ wpm install tinyget --save
 ```
 
-Or, via `[bower](http://bower.io)`
+Or, via [`bower`](http://bower.io)
 ```sh
 $ bower install tinyget --save
 ```
 
-## Get Started
+## Usage
 ### Node.js (commonjs)
 ```javascript
 var tinyget = require('tinyget');
@@ -37,7 +37,7 @@ var tinyget = require('tinyget');
 var tinyget = window.TinyGet;
 ```
 
-### Usage
+### Example
 ```javascript
 // default is get
 tinyget('/path/file').qry({key: value}).exec(function(err, result) {
@@ -89,6 +89,14 @@ tinyget.put({
 });
 ```
 
+### Options
+- options : url string or object
+    - url: remote url(string), required.
+    - payload: payload (string/object), default is null.
+    - qry: query string (string/object), default is null.
+    - contentType: request content-type (string), default when payload is object `application/json` else `text/form-url-encoded`
+    - responseType: response object type `text, json, xml, document` (string), default is `auto`
+    - headers: request headers (object), default is null.
 
 ### License
 Licensed under the MIT License.
