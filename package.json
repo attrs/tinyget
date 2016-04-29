@@ -1,0 +1,36 @@
+{
+  "name": "tinyget",
+  "version": "0.0.0",
+  "description": "A tiny http client for nodejs & browser",
+  "main": "lib/index.js",
+  "browser": "browser/index.js",
+  "repository": "attrs/tinyget",
+  "author": "joje <joje.attrs@gmail.com>",
+  "homepage": "https://github.com/attrs/tinyget",
+  "license": "MIT",
+  "dependencies": {
+    "async": "^1.5.2"
+  },
+  "devDependencies": {
+    "gulp": "^3.9.1",
+    "gulp-rename": "^1.2.2",
+    "gulp-rimraf": "^0.2.0",
+    "gulp-uglify": "^1.5.3",
+    "gulp-util": "^3.0.7"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "browser",
+    "LICENSE",
+    "README.md"
+  ],
+  "keywords": [
+    "browserify",
+    "webmodules",
+    "ajax",
+    "request",
+    "http",
+    "client"
+  ]
+}
