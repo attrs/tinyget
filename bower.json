@@ -2,7 +2,7 @@
   "name": "tinyget",
   "version": "0.0.0",
   "description": "A tiny http client for nodejs & browser",
-  "main": "dist/tinyget.js",
+  "main": "dist/tinyget.min.js",
   "authors": [
     "joje <joje.attrs@gmail.com>"
   ],

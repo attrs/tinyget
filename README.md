@@ -49,13 +49,6 @@ tinyget.post('/path/file').payload({key:'value'}).exec(function(err, result) {
     // TODO
 });
 
-// multiple request, results is array of each reault
-tinyget.post('/path/file1').payload({key:'value'})
-tinyget.post('/path/file2').payload({key:'value'})
-.exec(function(err, results) {
-    // TODO
-});
-
 // alt style 1
 tinyget({
     url: '/path/file',
@@ -67,7 +60,7 @@ tinyget({
 tinyget.post({
     url: '/path/file',
     contentType: 'application/json',
-    responseType: 'json',
+    evalType: 'json',
     payload: {key:'value'}
 }).exec(function(err, result) {
     // TODO
@@ -95,8 +88,10 @@ tinyget.put({
     - payload: payload (string/object), default is null.
     - qry: query string (string/object), default is null.
     - contentType: request content-type (string), default when payload is object `application/json` else `text/form-url-encoded`
-    - responseType: response object type `text, json, xml, document` (string), default is `auto`
+    - responseType: xhr.responseType(xhr2) (string), default is null
+    - type: response object eval type `text, json, xml` (string), default is `auto`
     - headers: request headers (object), default is null.
+    - sync: sync request (boolean), default is false
 
 ### License
 Licensed under the MIT License.
