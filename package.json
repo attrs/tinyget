@@ -1,6 +1,6 @@
 {
   "name": "tinyget",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "A tiny http client for nodejs & browser",
   "main": "lib/index.js",
   "browser": "lib/browser.js",
