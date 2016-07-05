@@ -1,5 +1,5 @@
 /*!
-* tinyget v0.0.0
+* tinyget v0.0.1
 * https://github.com/attrs/tinyget
 *
 * Copyright attrs and others
