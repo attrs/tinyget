@@ -24,7 +24,6 @@
     "test",
     "tests",
     "examples",
-    "lib",
     "bin"
   ]
 }

@@ -6,21 +6,46 @@ const gutil = require('gulp-util');
 const rename = require("gulp-rename");
 const uglify = require('gulp-uglify');
 const rimraf = require('gulp-rimraf');
+const header = require('gulp-header');
+const webpack = require('webpack-stream');
+
+const pkg = require('./package.json');
+const dist = path.join(__dirname, 'dist');
 
 gulp.task('build.js.clean', () => {
-  return gulp.src('runtime.min.js', { read: false })
+  return gulp.src('dist', { read: false })
     .pipe(rimraf());
 });
 
-gulp.task('build', ['build.js.clean'], () => {
-  return gulp.src('lib/index.js')
+gulp.task('build.webpack', ['build.js.clean'], () => {
+  var conf = require('./webpack.config.js');
+  delete conf.output.path;
+  
+  return gulp.src('lib/browser.js')
+    .pipe(webpack(conf))
+    .pipe(gulp.dest(dist));
+});
+
+gulp.task('build', ['build.webpack'], () => {
+  return gulp.src(path.join(dist, 'tinyget.js'))
+    .pipe(header([
+      '/*!',
+      '* <%= pkg.name %> v<%= pkg.version %>',
+      '* <%= pkg.homepage %>',
+      '*',
+      '* Copyright attrs and others',
+      '* Released under the MIT license',
+      '* https://github.com/<%=pkg.repository%>/blob/master/LICENSE',
+      '*/',
+      ''
+    ].join('\n'), { pkg: pkg }))
+    .pipe(gulp.dest(dist))
     .pipe(uglify())
-    .pipe(rename('tinyget.js'))
-    .pipe(gulp.dest('dist'))
+    .pipe(header('/*! <%= pkg.name %> v<%= pkg.version %> attrs */', { pkg: pkg }))
     .pipe(rename({
       suffix: '.min'
     }))
-    .pipe(gulp.dest('dist'));
+    .pipe(gulp.dest(dist));
 });
 
 // conclusion
