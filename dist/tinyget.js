@@ -1,5 +1,5 @@
 /*!
-* tinyget v0.0.2
+* tinyget v0.0.3
 * https://github.com/attrs/tinyget
 *
 * Copyright attrs and others
@@ -327,50 +327,51 @@ return /******/ (function(modules) { // webpackBootstrap
 	          responseType: responseType,
 	          sync: sync
 	        }, function(err, response) {
+	          if( response ) {
+	            try {
+	              var text = response.text, xml = response.data, data;
+	              var headers = response.headers || {};
+	              
+	              for(var k in headers) headers[k.toLowerCase()] = headers[k];
+	              response.headers = headers;
+	              
+	              var contentType = headers['content-type'];
+	              
+	              if( responseType ) {
+	                data = xml;
+	              } else if( type === 'document' ) {
+	                data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
+	              } else if( type === 'xml' ) {
+	                data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
+	              } else if( type === 'json' ) {
+	                data = JSON.parse(text);
+	              } else if( type === 'text' ) {
+	                data = text;
+	              } else {
+	                if( contentType && ~contentType.indexOf('/xml') )
+	                  data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
+	                else if( contentType && ~contentType.indexOf('/html') )
+	                  data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
+	                else if( contentType && ~contentType.indexOf('/json') )
+	                  data = JSON.parse(text);
+	                else
+	                  data = text;
+	              }
+	              
+	              events.fire('load', {response:response, data:data});
+	              
+	              if( response.status < 200 || response.status >= 300 ) err = new Error('error ' + response.status);
+	            } catch(e) {
+	              err = e;
+	            }
+	          }
+	          
 	          if( err ) events.fire('error', {
 	            response: response,
 	            error: err
-	          }), done(err);
+	          });
 	          
-	          try {
-	            var text = response.text, xml = response.data, data;
-	            var headers = response.headers || {};
-	          
-	            for(var k in headers) headers[k.toLowerCase()] = headers[k];
-	            response.headers = headers;
-	          
-	            var contentType = headers['content-type'];
-	          
-	            if( responseType ) {
-	              data = xml;
-	            } else if( type === 'document' ) {
-	              data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
-	            } else if( type === 'xml' ) {
-	              data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
-	            } else if( type === 'json' ) {
-	              data = JSON.parse(text);
-	            } else if( type === 'text' ) {
-	              data = text;
-	            } else {
-	              if( contentType && ~contentType.indexOf('/xml') )
-	                data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
-	              else if( contentType && ~contentType.indexOf('/html') )
-	                data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
-	              else if( contentType && ~contentType.indexOf('/json') )
-	                data = JSON.parse(text);
-	              else
-	                data = text;
-	            }
-	          
-	            events.fire('load', {response:response, data:data});
-	            done(null, data, response);
-	          } catch(err) {
-	            events.fire('error', {
-	              response: response,
-	              error: err
-	            });
-	            done(err, null, response);
-	          }
+	          done(err || null, data || null, response || null);
 	        });
 	        
 	        return this;
@@ -389,18 +390,18 @@ return /******/ (function(modules) { // webpackBootstrap
 	    return this;
 	  };
 	  
-	  tinyget.get = function(options, payload) {
+	  tinyget.get = function(options, qry) {
 	    if( typeof options === 'string' ) options = {url:options};
 	    options = options || {};
 	    options.method = 'get';
-	    return tinyget(options).payload(payload);
+	    return tinyget(options).qry(qry);
 	  };
 	  
-	  tinyget.options = function(options, payload) {
+	  tinyget.options = function(options, qry) {
 	    if( typeof options === 'string' ) options = {url:options};
 	    options = options || {};
 	    options.method = 'options';
-	    return tinyget(options).payload(payload);
+	    return tinyget(options).qry(qry);
 	  };
 	  
 	  tinyget.post = function(options, payload) {
@@ -417,11 +418,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    return tinyget(options).payload(payload);
 	  };
 	  
-	  tinyget['delete'] = function(options, payload) {
+	  tinyget['delete'] = function(options, qry) {
 	    if( typeof options === 'string' ) options = {url:options};
 	    options = options || {};
 	    options.method = 'delete';
-	    return tinyget(options).payload(payload);
+	    return tinyget(options).qry(qry);
 	  };
 	  
 	  return tinyget;
