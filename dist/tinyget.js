@@ -1,5 +1,5 @@
 /*!
-* tinyget v0.0.4
+* tinyget v0.0.5
 * https://github.com/attrs/tinyget
 *
 * Copyright attrs and others
@@ -296,7 +296,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 	        
 	        if( payload ) {
-	          if( contentType && ~contentType.indexOf('json') ) {
+	          if( payload instanceof FormData ) {
+	            payload = payload;
+	          } else if( contentType && ~contentType.indexOf('json') ) {
 	            payload = typeof payload === 'object' ? JSON.stringify(payload) : payload.toString();
 	          } else if( !contentType && contentType === 'application/x-www-form-urlencoded' ) {
 	            payload = typeof payload === 'object' ? qs.encode(payload) : payload.toString();
