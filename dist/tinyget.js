@@ -1,5 +1,5 @@
 /*!
-* tinyget v0.0.5
+* tinyget v0.0.6
 * https://github.com/attrs/tinyget
 *
 * Copyright attrs and others
@@ -101,6 +101,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	base.impl.connector = function(options, done) {
 	  var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
 	  xhr.open(options.method, options.url, !options.sync);
+	  xhr.withCredentials = true;
 	  
 	  xhr.onload = function() {
 	    done(null, createResponse(xhr));
@@ -143,48 +144,64 @@ return /******/ (function(modules) { // webpackBootstrap
 	  endpoint = endpoint || '';
 	  if( typeof endpoint !== 'string' ) throw new TypeError('illegal type of endpoint url:' + endpoint);
 	  
+	  var events = (function() {
+	    var listeners = {}, pause = false;
+	    
+	    function fire(type, detail) {
+	      if( pause ) return;
+	      (listeners[type] || []).forEach(function(listener) {
+	        listener({
+	          type: type,
+	          detail: detail
+	        });
+	      });
+	    }
+	    
+	    function on(type, fn) {
+	      listeners[type] = listeners[type] || [];
+	      listeners[type].push(fn);
+	    }
+	    
+	    function once(type, fn) {
+	      var wrap = function(e) {
+	        off(type, wrap);
+	        return fn(e);
+	      };
+	      on(type, wrap);
+	    }
+	    
+	    function off(type, fn) {
+	      var fns = listeners[type];
+	      if( fns ) for(var i;~(i = fns.indexOf(fn));) fns.splice(i, 1);
+	    }
+	    
+	    function pause() {
+	      pause = true;
+	    }
+	    
+	    function resume() {
+	      pause = false;
+	    }
+	    
+	    function active(b) {
+	      pause = !b;
+	    }
+	    
+	    return {
+	      fire: fire,
+	      on: on,
+	      once: once,
+	      off: off,
+	      pause: pause,
+	      resume: resume,
+	      active: active
+	    }
+	  })();
+	  
 	  function tinyget(options, callback) {
 	    options = options || {};
 	    if( typeof options === 'string' ) options = { url:options };
 	    
-	    var events = (function() {
-	      var listeners = {};
-	      
-	      function fire(type, detail) {
-	        (listeners[type] || []).forEach(function(listener) {
-	          listener({
-	            type: type,
-	            detail: detail
-	          });
-	        });
-	      }
-	      
-	      function on(type, fn) {
-	        listeners[type] = listeners[type] || [];
-	        listeners[type].push(fn);
-	      }
-	      
-	      function once(type, fn) {
-	        var wrap = function(e) {
-	          off(type, wrap);
-	          return fn(e);
-	        };
-	        on(type, wrap);
-	      }
-	      
-	      function off(type, fn) {
-	        var fns = listeners[type];
-	        if( fns ) for(var i;~(i = fns.indexOf(fn));) fns.splice(i, 1);
-	      }
-	      
-	      return {
-	        fire: fire,
-	        on: on,
-	        once: once,
-	        off: off
-	      }
-	    })();
-	  
 	    var chain = {
 	      url: function(url) {
 	        if( !arguments.length ) return options.url;
@@ -199,6 +216,18 @@ return /******/ (function(modules) { // webpackBootstrap
 	      qry: function(qry) {
 	        if( !arguments.length ) return options.qry;
 	        options.qry = qry;
+	        return this;
+	      },
+	      hook: function(type, fn) {
+	        if( arguments.length === 1 && type === false ) {
+	          options.hooks = false;
+	          return this;
+	        }
+	        if( !arguments.length ) return options.hooks;
+	        if( arguments.length === 1 ) return options.hooks && options.hooks[type];
+	        if( typeof type !== 'string' ) return console.error('hook type must be a string:' + type);
+	        options.hooks = options.hooks || {};
+	        options.hooks[type] = fn;
 	        return this;
 	      },
 	      sync: function(sync) {
@@ -239,16 +268,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	        else options.headers[name] = value;
 	        return this;
 	      },
-	      on: function(type, listener) {
-	        events.on(type, listener);
-	        return this;
-	      },
-	      once: function(type, listener) {
-	        events.once(type, listener);
-	        return this;
-	      },
-	      off: function(type, listener) {
-	        events.off(type, listener);
+	      event: function(b) {
+	        options.event = b;
 	        return this;
 	      },
 	      get: tinyget.get,
@@ -256,144 +277,207 @@ return /******/ (function(modules) { // webpackBootstrap
 	      put: tinyget.put,
 	      options: tinyget.options,
 	      'delete': tinyget['delete'],
-	      exec: function(done) {
-	        if( !arguments.length ) options.sync = true;
-	        if( typeof done !== 'function' ) done = function() {};
+	      exec: function(odone) {
 	        if( !options ) return done(new Error('missing options'));
 	        if( !impl.connector ) return done(new Error('connector not found'));
+	        if( typeof done !== 'function' ) done = function() {};
 	        
-	        if( typeof hooks.before === 'function' ) options = hooks.before(options) || options;
+	        var fireevents = options.event === false ? false : true;
 	        
-	        var url = options.url;
-	        var method = options.method || 'get';
-	        var qry = options.qry;
-	        var payload = options.payload || options.body;
-	        var headers = options.headers || {};
-	        var contentType = options.contentType;
-	        var responseType = options.responseType;
-	        var type = options.type;
-	        var sync = options.sync === true ? true : false;
-	        
-	        if( typeof url === 'function' ) url = url();
-	        if( typeof method === 'function' ) method = method();
-	        if( typeof qry === 'function' ) qry = qry();
-	        if( typeof payload === 'function' ) payload = payload();
-	        if( typeof headers === 'function' ) headers = headers();
-	        if( typeof contentType === 'function' ) contentType = contentType();
-	        if( typeof responseType === 'function' ) responseType = responseType();
-	        if( typeof type === 'function' ) type = type();
-	        if( typeof sync === 'function' ) sync = sync();
-	        
-	        if( !url ) return done(new Error('missing url'));
-	        if( typeof url !== 'string' ) return fn(new Error('url must be a string: ' + typeof url));
-	        
-	        if( qry ) {
-	          if( typeof qry === 'object' ) qry = qs.stringify(qry);
-	          if( typeof qry === 'string' ) {
-	            if( ~url.indexOf('?') ) url = url + '&' + qry;
-	            else url = url + '?' + qry;
-	          }
-	        }
-	        
-	        if( payload ) {
-	          if( payload instanceof FormData ) {
-	            payload = payload;
-	          } else if( contentType && ~contentType.indexOf('json') ) {
-	            payload = typeof payload === 'object' ? JSON.stringify(payload) : payload.toString();
-	          } else if( !contentType && contentType === 'application/x-www-form-urlencoded' ) {
-	            payload = typeof payload === 'object' ? qs.encode(payload) : payload.toString();
-	          } else if( !contentType && typeof payload === 'object' ) {
-	            contentType = 'application/json';
-	            payload = JSON.stringify(payload);
-	          } else if( !contentType && typeof payload === 'string' ) {
-	            contentType = 'application/x-www-form-urlencoded';
-	          }
-	        }
-	        
-	        if( contentType ) headers['Content-Type'] = contentType;
-	        
-	        var ep = endpoint && endpoint.trim();
-	        if( ep && !(~url.indexOf('://') && url.indexOf('/') > url.indexOf(':')) ) {
-	          if( ~ep.indexOf('://') && ep.indexOf('/') > ep.indexOf(':') ) {
-	            if( ep[ep.length - 1] !== '/' ) ep = ep + '/';
-	            if( url[0] === '/' ) url = url.substring(1);
-	            
-	            url = ep + path.normalize(url);
-	          } else {
-	            url = path.join(ep, url);
-	          }
-	        }
-	        
-	        var result, error;
-	        impl.connector({
-	          url: url,
-	          method: method,
-	          payload: payload,
-	          headers: headers,
-	          responseType: responseType,
-	          sync: sync
-	        }, function(err, response) {
-	          function processing(err, response) {
-	            if( response ) {
-	              try {
-	                var text = response.text, xml = response.data, data;
-	                var headers = response.headers || {};
-	              
-	                for(var k in headers) headers[k.toLowerCase()] = headers[k];
-	                response.headers = headers;
-	              
-	                var contentType = headers['content-type'];
-	              
-	                if( responseType ) {
-	                  data = xml;
-	                } else if( type === 'document' ) {
-	                  data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
-	                } else if( type === 'xml' ) {
-	                  data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
-	                } else if( type === 'json' ) {
-	                  data = JSON.parse(text);
-	                } else if( type === 'text' ) {
-	                  data = text;
-	                } else {
-	                  if( contentType && ~contentType.indexOf('/xml') )
-	                    data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
-	                  else if( contentType && ~contentType.indexOf('/html') )
-	                    data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
-	                  else if( contentType && ~contentType.indexOf('/json') )
-	                    data = JSON.parse(text);
-	                  else
-	                    data = text;
-	                }
-	              
-	                events.fire('load', {response:response, data:data});
-	              
-	                if( response.status < 200 || response.status >= 300 ) err = new Error('error ' + response.status);
-	              } catch(e) {
-	                err = e;
-	              }
-	            }
-	          
-	            if( err ) events.fire('error', {
+	        function done(err, data, response) {
+	          if( err ) {
+	            fireevents && events.fire('error', {
+	              options: options,
 	              response: response,
+	              data: data,
 	              error: err
 	            });
-	          
-	            error = err;
-	            result = data;
-	          
-	            if( typeof hooks.callback === 'function' ) hooks.callback(done, err, data, response);
-	            else done(err || null, data || null, response || null);
+	          } else {
+	            fireevents && events.fire('success', {
+	              options: options,
+	              response: response,
+	              data: data
+	            });
 	          }
 	          
-	          if( typeof hooks.after === 'function' ) hooks.after(processing, err, response);
-	          else processing(err, response);
-	        });
-	        
-	        if( !arguments.length ) {
-	          if( error ) throw error;
-	          return result;
+	          fireevents && events.fire('done', {
+	            options: options,
+	            response: response,
+	            error: err,
+	            data: data
+	          });
+	          
+	          odone.apply(this, arguments);
 	        }
 	        
+	        fireevents && events.fire('start', {
+	          options: options
+	        });
+	        
+	        var hooks = {
+	          before: defaultHooks.before,
+	          after: defaultHooks.after,
+	          callback: defaultHooks.callback
+	        };
+	        
+	        if( options.hooks !== false ) {
+	          var ohooks = options.hooks || {};
+	          hooks = {
+	            before: ohooks.before || tinyget.hook('before'),
+	            after: ohooks.after || tinyget.hook('after'),
+	            callback: ohooks.callback || tinyget.hook('callback'),
+	          };
+	        }
+	        
+	        if( hooks.before === false ) hooks.before = defaultHooks.before;
+	        if( hooks.after === false ) hooks.after = defaultHooks.after;
+	        if( hooks.callback === false ) hooks.callback = defaultHooks.callback;
+	        
+	        function action(options) {
+	          var url = options.url;
+	          var method = options.method || 'get';
+	          var qry = options.qry;
+	          var payload = options.payload || options.body;
+	          var headers = options.headers || {};
+	          var contentType = options.contentType;
+	          var responseType = options.responseType;
+	          var type = options.type;
+	          var sync = options.sync === true ? true : false;
+	          
+	          if( typeof url === 'function' ) url = url();
+	          if( typeof method === 'function' ) method = method();
+	          if( typeof qry === 'function' ) qry = qry();
+	          if( typeof payload === 'function' ) payload = payload();
+	          if( typeof headers === 'function' ) headers = headers();
+	          if( typeof contentType === 'function' ) contentType = contentType();
+	          if( typeof responseType === 'function' ) responseType = responseType();
+	          if( typeof type === 'function' ) type = type();
+	          if( typeof sync === 'function' ) sync = sync();
+	          
+	          if( !url ) return done(new Error('missing url'));
+	          if( typeof url !== 'string' ) return fn(new Error('url must be a string: ' + typeof url));
+	          
+	          if( qry ) {
+	            if( typeof qry === 'object' ) qry = qs.stringify(qry);
+	            if( typeof qry === 'string' ) {
+	              if( ~url.indexOf('?') ) url = url + '&' + qry;
+	              else url = url + '?' + qry;
+	            }
+	          }
+	          
+	          if( payload ) {
+	            if( payload instanceof FormData ) {
+	              payload = payload;
+	            } else if( contentType && ~contentType.indexOf('json') ) {
+	              payload = typeof payload === 'object' ? JSON.stringify(payload) : payload.toString();
+	            } else if( !contentType && contentType === 'application/x-www-form-urlencoded' ) {
+	              payload = typeof payload === 'object' ? qs.encode(payload) : payload.toString();
+	            } else if( !contentType && typeof payload === 'object' ) {
+	              contentType = 'application/json';
+	              payload = JSON.stringify(payload);
+	            } else if( !contentType && typeof payload === 'string' ) {
+	              contentType = 'application/x-www-form-urlencoded';
+	            }
+	          }
+	          
+	          if( contentType ) headers['Content-Type'] = contentType;
+	          
+	          var ep = endpoint && endpoint.trim();
+	          if( ep && !(~url.indexOf('://') && url.indexOf('/') > url.indexOf(':')) ) {
+	            if( ~ep.indexOf('://') && ep.indexOf('/') > ep.indexOf(':') ) {
+	              if( ep[ep.length - 1] !== '/' ) ep = ep + '/';
+	              if( url[0] === '/' ) url = url.substring(1);
+	            
+	              url = ep + path.normalize(url);
+	            } else {
+	              url = path.join(ep, url);
+	            }
+	          }
+	          
+	          fireevents && events.fire('connect', {
+	            options: options,
+	            url: url,
+	            method: method,
+	            payload: payload,
+	            headers: headers,
+	            responseType: responseType,
+	            sync: sync
+	          });
+	          
+	          impl.connector({
+	            url: url,
+	            method: method,
+	            payload: payload,
+	            headers: headers,
+	            responseType: responseType,
+	            sync: sync
+	          }, function(err, response) {
+	            fireevents && events.fire('response', {
+	              options: options,
+	              error: err,
+	              response: response
+	            });
+	            
+	            function processing(err, response) {
+	              if( response ) {
+	                try {
+	                  var text = response.text, xml = response.data, data;
+	                  var headers = response.headers || {};
+	                  
+	                  for(var k in headers) headers[k.toLowerCase()] = headers[k];
+	                  response.headers = headers;
+	                  
+	                  var contentType = headers['content-type'];
+	                  
+	                  if( responseType ) {
+	                    data = xml;
+	                  } else if( type === 'document' ) {
+	                    data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
+	                  } else if( type === 'xml' ) {
+	                    data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
+	                  } else if( type === 'json' ) {
+	                    data = JSON.parse(text);
+	                  } else if( type === 'text' ) {
+	                    data = text;
+	                  } else {
+	                    if( contentType && ~contentType.indexOf('/xml') )
+	                      data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
+	                    else if( contentType && ~contentType.indexOf('/html') )
+	                      data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
+	                    else if( contentType && ~contentType.indexOf('/json') )
+	                      data = JSON.parse(text);
+	                    else
+	                      data = text;
+	                  }
+	                  
+	                  fireevents && events.fire('load', {response:response, data:data});
+	                  
+	                  if( response.status < 200 || response.status >= 300 ) err = new Error('error ' + response.status);
+	                } catch(e) {
+	                  err = e;
+	                }
+	              }
+	              
+	              hooks.callback({
+	                options: options,
+	                error: err,
+	                data: data,
+	                response: response
+	              }, done);
+	            }
+	            
+	            hooks.after({
+	              options: options,
+	              error: err,
+	              response: response
+	            }, processing);
+	          });
+	        }
+	        
+	        hooks.before(options, function(err, options) {
+	          if( err ) hooks.callback({error:err}, done);
+	          action(options);
+	        });
 	        return this;
 	      }
 	    }
@@ -410,12 +494,31 @@ return /******/ (function(modules) { // webpackBootstrap
 	    return this;
 	  };
 	  
-	  var hooks = tinyget.hooks = {
-	    callback: function(callback, err, data, res) {
-	      callback(err || null, data || null, res || null);
+	  var defaultHooks = {
+	    before: function(options, done) {
+	      done(null, options);
+	    },
+	    after: function(result, done) {
+	      done(result.error || null, result.response || null);
+	    },
+	    callback: function(result, done) {
+	      done(result.error || null, result.data || null, result.response || null);
 	    }
 	  };
 	  
+	  var hooks = {
+	    before: defaultHooks.before,
+	    after: defaultHooks.after,
+	    callback: defaultHooks.callback,
+	  };
+	  
+	  tinyget.hook = function(type, fn) {
+	    if( arguments.length === 1 ) return hooks[type] || defaultHooks[type];
+	    if( typeof type !== 'string' ) throw new TypeError('hook type must be a string:' + type);
+	    if( typeof fn !== 'function' ) throw new TypeError('hook fn must be a function:' + fn);
+	    hooks[type] = fn;
+	    return this;
+	  };
 	  
 	  tinyget.get = function(options, qry) {
 	    if( typeof options === 'string' ) options = {url:options};
@@ -452,13 +555,33 @@ return /******/ (function(modules) { // webpackBootstrap
 	    return tinyget(options).qry(qry);
 	  };
 	  
+	  tinyget.on = function(type, listener) {
+	    events.on(type, listener);
+	    return this;
+	  };
+	  
+	  tinyget.once = function(type, listener) {
+	    events.once(type, listener);
+	    return this;
+	  };
+	  
+	  tinyget.off = function(type, listener) {
+	    events.off(type, listener);
+	    return this;
+	  };
+	  
+	  tinyget.event = function(b) {
+	    events.active(b);
+	    return this;
+	  };
+	  
 	  return tinyget;
 	};
 	
 	var tinyget = new Tinyget();
 	tinyget.Tinyget = Tinyget;
 	tinyget.impl = impl;
-	tinyget.endpoint = function(endpoint) {
+	tinyget.branch = function(endpoint) {
 	  return new Tinyget(endpoint);
 	}
 	
