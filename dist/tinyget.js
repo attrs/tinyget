@@ -101,7 +101,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	base.impl.connector = function(options, done) {
 	  var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
 	  xhr.open(options.method, options.url, !options.sync);
-	  xhr.withCredentials = true;
+	  xhr.withCredentials = options.credentials ? true : false;
 	  
 	  xhr.onload = function() {
 	    done(null, createResponse(xhr));
@@ -229,6 +229,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	        options.hooks = options.hooks || {};
 	        options.hooks[type] = fn;
 	        return this;
+	      },
+	      credentials: function(b) {
+	        if( !arguments.length ) return options.credentials;
+	        options.credentials = b;
 	      },
 	      sync: function(sync) {
 	        if( !arguments.length ) return options.sync;
@@ -410,7 +414,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	            payload: payload,
 	            headers: headers,
 	            responseType: responseType,
-	            sync: sync
+	            sync: sync,
+	            credentials: options.credentials || options.withCredentials
 	          }, function(err, response) {
 	            fireevents && events.fire('response', {
 	              options: options,
