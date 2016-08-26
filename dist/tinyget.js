@@ -1,5 +1,5 @@
 /*!
-* tinyget v0.0.7
+* tinyget v0.0.9
 * https://github.com/attrs/tinyget
 *
 * Copyright attrs and others
@@ -284,7 +284,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      exec: function(odone) {
 	        if( !options ) return done(new Error('missing options'));
 	        if( !impl.connector ) return done(new Error('connector not found'));
-	        if( typeof done !== 'function' ) done = function() {};
+	        if( typeof odone !== 'function' ) odone = function() {};
 	        
 	        var fireevents = options.event === false ? false : true;
 	        
