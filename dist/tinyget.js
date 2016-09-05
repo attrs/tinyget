@@ -103,9 +103,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	  xhr.open(options.method, options.url, !options.sync);
 	  xhr.withCredentials = options.credentials ? true : false;
 	  
-	  xhr.onload = function() {
-	    done(null, createResponse(xhr));
+	  xhr.onreadystatechange = function(e) {
+	    if( this.readyState == 4 ) {
+	      done(null, createResponse(this));
+	    }
 	  };
+	  
+	  /*xhr.onload = function() {
+	    done(null, createResponse(xhr));
+	  };*/
+	  
 	  xhr.onerror = function() {
 	    done(new Error('error(' + xhr.status + '): ' + options.url), createResponse(xhr));
 	  };
@@ -377,7 +384,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	          }
 	          
 	          if( payload ) {
-	            if( payload instanceof FormData ) {
+	            if( 'FormData' in window && payload instanceof FormData ) {
 	              payload = payload;
 	            } else if( contentType && ~contentType.indexOf('json') ) {
 	              payload = typeof payload === 'object' ? JSON.stringify(payload) : payload.toString();
