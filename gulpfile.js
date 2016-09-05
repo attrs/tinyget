@@ -30,7 +30,7 @@ gulp.task('build', ['build.webpack'], () => {
   return gulp.src(path.join(dist, 'tinyget.js'))
     .pipe(header([
       '/*!',
-      '* <%= pkg.name %> v<%= pkg.version %>',
+      '* <%= pkg.name %>',
       '* <%= pkg.homepage %>',
       '*',
       '* Copyright attrs and others',
@@ -41,7 +41,7 @@ gulp.task('build', ['build.webpack'], () => {
     ].join('\n'), { pkg: pkg }))
     .pipe(gulp.dest(dist))
     .pipe(uglify())
-    .pipe(header('/*! <%= pkg.name %> v<%= pkg.version %> attrs */', { pkg: pkg }))
+    .pipe(header('/*! <%= pkg.name %> attrs */', { pkg: pkg }))
     .pipe(rename({
       suffix: '.min'
     }))
