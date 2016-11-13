@@ -99,28 +99,30 @@ return /******/ (function(modules) { // webpackBootstrap
 	}
 	
 	base.impl.connector = function(options, done) {
+	  var finished = false;
+	  
 	  var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
 	  xhr.open(options.method, options.url, !options.sync);
 	  xhr.withCredentials = options.credentials ? true : false;
 	  
-	  xhr.onreadystatechange = function(e) {
+	  /*xhr.onreadystatechange = function(e) {
+	    console.log('onreadystatechange', e);
 	    if( this.readyState == 4 ) {
 	      done(null, createResponse(this));
 	    }
-	  };
-	  
-	  /*xhr.onload = function() {
-	    done(null, createResponse(xhr));
 	  };*/
 	  
-	  xhr.onerror = function() {
-	    done(new Error('error(' + xhr.status + '): ' + options.url), createResponse(xhr));
+	  xhr.onload = function(e) {
+	    done(null, createResponse(xhr));
 	  };
-	  xhr.onabort = function() {
-	    done(new Error('aborted: ' + options.url), createResponse(xhr));
+	  xhr.onerror = function(e) {
+	    done(new Error('[tinyget] ajax error(' + xhr.status + ') "' + options.url + '"'), createResponse(xhr));
 	  };
-	  xhr.ontimeout = function() {
-	    done(new Error('timeout: ' + options.url), createResponse(xhr));
+	  xhr.onabort = function(e) {
+	    done(new Error('[tinyget] ajax error(aborted) "' + options.url + '"'), createResponse(xhr));
+	  };
+	  xhr.ontimeout = function(e) {
+	    done(new Error('[tinyget] ajax error(timeout) "' + options.url + '"'), createResponse(xhr));
 	  };
 	  
 	  for(var key in options.headers ) xhr.setRequestHeader(key, options.headers[key]);
@@ -423,6 +425,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	            sync: sync,
 	            credentials: options.credentials || options.withCredentials
 	          }, function(err, response) {
+	            if( !err && (response.status < 200 || response.status >= 300) )
+	              err = new Error('[tinyget] error status(' + response.status + ') "' + options.url + '"');
+	            
 	            fireevents && events.fire('response', {
 	              options: options,
 	              error: err,
@@ -462,10 +467,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	                  }
 	                  
 	                  fireevents && events.fire('load', {response:response, data:data});
-	                  
-	                  if( response.status < 200 || response.status >= 300 ) err = new Error('error ' + response.status);
 	                } catch(e) {
-	                  err = e;
+	                  err = err || e;
 	                }
 	              }
 	              
