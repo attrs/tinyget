@@ -10,7 +10,6 @@
   "license": "MIT",
   "dependencies": {
     "jsdom": "^8.5.0",
-    "qs": "^6.2.0",
     "request": "^2.72.0",
     "xmldom": "^0.1.22"
   },
