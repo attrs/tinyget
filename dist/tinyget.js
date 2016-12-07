@@ -332,6 +332,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	        options.hooks[type] = fn;
 	        return this;
 	      },
+	      cache: function(b) {
+	        if( !arguments.length ) return options.cache;
+	        options.cache = !!b;
+	        return this;
+	      },
 	      ondone: function(fn) {
 	        options.ondone = fn;
 	        return this;
@@ -346,7 +351,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	      },
 	      credentials: function(b) {
 	        if( !arguments.length ) return options.credentials;
-	        options.credentials = b;
+	        options.credentials = !!b;
+	        return this;
 	      },
 	      sync: function(sync) {
 	        if( !arguments.length ) return options.sync;
@@ -455,6 +461,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	          var ondone = options.ondone;
 	          var onerror = options.onerror;
 	          var sync = options.sync === true ? true : false;
+	          var cache = options.cache === false ? false : true;
 	          
 	          if( typeof url === 'function' ) url = url();
 	          if( typeof method === 'function' ) method = method();
@@ -475,6 +482,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	              if( ~url.indexOf('?') ) url = url + '&' + qry;
 	              else url = url + '?' + qry;
 	            }
+	          }
+	          
+	          if( !cache ) {
+	            if( ~url.indexOf('?') ) url = url + '&_ts=' + (new Date()).getTime();
+	            else url = url + '?_ts=' + (new Date()).getTime();
 	          }
 	          
 	          if( payload ) {
