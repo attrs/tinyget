@@ -64,6 +64,11 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	var base = __webpack_require__(1);
 	
+	function ie() {
+	  var nav = navigator.userAgent.toLowerCase();
+	  return (nav.indexOf('msie') != -1) ? parseInt(nav.split('msie')[1]) : false;
+	}
+	
 	/**
 	 * XmlHttpRequest's getAllResponseHeaders() method returns a string of response
 	 * headers according to the format described here:
@@ -76,6 +81,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  if (!headerStr) {
 	    return headers;
 	  }
+	  
 	  var headerPairs = headerStr.split('\u000d\u000a');
 	  for (var i = 0, len = headerPairs.length; i < len; i++) {
 	    var headerPair = headerPairs[i];
@@ -86,6 +92,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      headers[key] = val;
 	    }
 	  }
+	  
 	  return headers;
 	}
 	
@@ -100,35 +107,105 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	base.impl.connector = function(options, done) {
 	  var finished = false;
+	  var url = options.url;
+	  var method = options.method;
+	  var payload = options.payload;
+	  var sync = options.sync;
+	  var credentials = options.credentials;
+	  var headers = options.headers;
+	  var responseType = options.responseType;
+	  var onprogress = options.onprogress;
+	  var cors = url.toLowerCase().startsWith('http://') || url.toLowerCase().startsWith('https://') ? true : false;
+	  var ieversion = ie();
 	  
-	  var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
-	  xhr.open(options.method, options.url, !options.sync);
-	  xhr.withCredentials = options.credentials ? true : false;
-	  
-	  /*xhr.onreadystatechange = function(e) {
-	    console.log('onreadystatechange', e);
-	    if( this.readyState == 4 ) {
-	      done(null, createResponse(this));
+	  if( cors && ieversion && ieversion <= 9 ) {
+	    var xd = new XDomainRequest();
+	    
+	    xd.onload = function(e) {
+	      done(null, {
+	        status: 200,
+	        text: xd.responseText
+	      });
+	    };
+	    
+	    xd.onerror = function(e) {
+	      done(new Error('[tinyget] ajax error(' + xd.status + ') "' + url + '"'), {
+	        status: 500,
+	        text: xd.responseText
+	      });
+	    };
+	    
+	    xd.onprogress = function(e) {
+	      onprogress && onprogress.call(xd, e);
+	    };
+	    
+	    xd.ontimeout = function(e) {
+	      done(new Error('[tinyget] ajax error(timeout) "' + url + '"'), {
+	        status: 500
+	      });
+	    };
+	    
+	    xd.open(method, url);
+	    xd.withCredentials = credentials ? true : false;
+	    
+	    for(var key in headers ) {
+	      console.warn('[tinyget] XDomainRequest cannot set request header, header ignored ', key, headers[key]);
 	    }
-	  };*/
+	    
+	    if( responseType ) xd.responseType = responseType;
+	    if( payload ) xd.send(payload);
+	    else xd.send();
+	  } else {
+	    var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
+	    
+	    if( onprogress ) {
+	      if( xhr.upload ) {
+	        xhr.upload.addEventListener('progress', function(e) {
+	          onprogress.call(xhr, e);
+	        }, false);
+	      } else {
+	        console.warn('[tinyget] browser does not support upload progress.');
+	      }
+	    }
+	    
+	    if( 'onload' in xhr ) {
+	      xhr.onload = function(e) {
+	        done(null, createResponse(xhr));
+	      };
+	      
+	      xhr.onerror = function(e) {
+	        done(new Error('[tinyget] ajax error(' + xhr.status + ') "' + url + '"'), createResponse(xhr));
+	      };
+	    } else {
+	      xhr.onreadystatechange = function(e) {
+	        if( xhr.readyState == 4 ) {
+	          done(null, createResponse(xhr));
+	        }
+	      };
+	    }
+	    
+	    xhr.onprogress = function(e) {
+	      onprogress && onprogress.call(xhr, e);
+	    };
+	    
+	    xhr.onabort = function(e) {
+	      done(new Error('[tinyget] ajax error(aborted) "' + url + '"'), createResponse(xhr));
+	    };
+	    
+	    xhr.ontimeout = function(e) {
+	      done(new Error('[tinyget] ajax error(timeout) "' + url + '"'), createResponse(xhr));
+	    };
+	    
+	    xhr.open(method, url, !sync);
+	    xhr.withCredentials = credentials ? true : false;
 	  
-	  xhr.onload = function(e) {
-	    done(null, createResponse(xhr));
-	  };
-	  xhr.onerror = function(e) {
-	    done(new Error('[tinyget] ajax error(' + xhr.status + ') "' + options.url + '"'), createResponse(xhr));
-	  };
-	  xhr.onabort = function(e) {
-	    done(new Error('[tinyget] ajax error(aborted) "' + options.url + '"'), createResponse(xhr));
-	  };
-	  xhr.ontimeout = function(e) {
-	    done(new Error('[tinyget] ajax error(timeout) "' + options.url + '"'), createResponse(xhr));
-	  };
-	  
-	  for(var key in options.headers ) xhr.setRequestHeader(key, options.headers[key]);
-	  if( options.responseType ) xhr.responseType = options.responseType;
-	  if( options.payload ) xhr.send(options.payload);
-	  else xhr.send();
+	    for(var key in headers ) 
+	      xhr.setRequestHeader(key, headers[key]);
+	    
+	    if( responseType ) xhr.responseType = responseType;
+	    if( payload ) xhr.send(payload);
+	    else xhr.send();
+	  }
 	};
 	
 	base.impl.toXml = function(text) {
@@ -146,8 +223,8 @@ return /******/ (function(modules) { // webpackBootstrap
 /***/ function(module, exports, __webpack_require__) {
 
 	var URL = __webpack_require__(2);
-	var qs = __webpack_require__(8);
-	var path = __webpack_require__(12);
+	var qs = __webpack_require__(9);
+	var path = __webpack_require__(14);
 	var debug = false;
 	var impl = {};
 	
@@ -253,6 +330,18 @@ return /******/ (function(modules) { // webpackBootstrap
 	        if( typeof type !== 'string' ) return console.error('hook type must be a string:' + type);
 	        options.hooks = options.hooks || {};
 	        options.hooks[type] = fn;
+	        return this;
+	      },
+	      ondone: function(fn) {
+	        options.ondone = fn;
+	        return this;
+	      },
+	      onerror: function(fn) {
+	        options.onerror = fn;
+	        return this;
+	      },
+	      onprogress: function(fn) {
+	        options.onprogress = fn;
 	        return this;
 	      },
 	      credentials: function(b) {
@@ -362,6 +451,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	          var contentType = options.contentType;
 	          var responseType = options.responseType;
 	          var type = options.type;
+	          var onprogress = options.onprogress;
+	          var ondone = options.ondone;
+	          var onerror = options.onerror;
 	          var sync = options.sync === true ? true : false;
 	          
 	          if( typeof url === 'function' ) url = url();
@@ -422,6 +514,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            payload: payload,
 	            headers: headers,
 	            responseType: responseType,
+	            onprogress: onprogress,
 	            sync: sync,
 	            credentials: options.credentials || options.withCredentials
 	          }, function(err, response) {
@@ -477,7 +570,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	                error: err,
 	                data: data,
 	                response: response
-	              }, done);
+	              }, function(err, result) {
+	                if( onerror && err ) onerror.call(this, err, response);
+	                if( ondone && !err ) ondone.call(this, result, response);
+	                
+	                done.apply(this, arguments);
+	              });
 	            }
 	            
 	            hooks.after({
@@ -617,7 +715,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 	// USE OR OTHER DEALINGS IN THE SOFTWARE.
 	
+	'use strict';
+	
 	var punycode = __webpack_require__(3);
+	var util = __webpack_require__(5);
 	
 	exports.parse = urlParse;
 	exports.resolve = urlResolve;
@@ -648,6 +749,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	var protocolPattern = /^([a-z0-9.+-]+:)/i,
 	    portPattern = /:[0-9]*$/,
 	
+	    // Special case for a simple path URL
+	    simplePathPattern = /^(\/\/?(?!\/)[^\?\s]*)(\?[^\s]*)?$/,
+	
 	    // RFC 2396: characters reserved for delimiting URLs.
 	    // We actually just auto-escape these.
 	    delims = ['<', '>', '"', '`', ' ', '\r', '\n', '\t'],
@@ -664,8 +768,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	    nonHostChars = ['%', '/', '?', ';', '#'].concat(autoEscape),
 	    hostEndingChars = ['/', '?', '#'],
 	    hostnameMaxLen = 255,
-	    hostnamePartPattern = /^[a-z0-9A-Z_-]{0,63}$/,
-	    hostnamePartStart = /^([a-z0-9A-Z_-]{0,63})(.*)$/,
+	    hostnamePartPattern = /^[+a-z0-9A-Z_-]{0,63}$/,
+	    hostnamePartStart = /^([+a-z0-9A-Z_-]{0,63})(.*)$/,
 	    // protocols that can allow "unsafe" and "unwise" chars.
 	    unsafeProtocol = {
 	      'javascript': true,
@@ -689,10 +793,10 @@ return /******/ (function(modules) { // webpackBootstrap
 	      'gopher:': true,
 	      'file:': true
 	    },
-	    querystring = __webpack_require__(5);
+	    querystring = __webpack_require__(6);
 	
 	function urlParse(url, parseQueryString, slashesDenoteHost) {
-	  if (url && isObject(url) && url instanceof Url) return url;
+	  if (url && util.isObject(url) && url instanceof Url) return url;
 	
 	  var u = new Url;
 	  u.parse(url, parseQueryString, slashesDenoteHost);
@@ -700,15 +804,48 @@ return /******/ (function(modules) { // webpackBootstrap
 	}
 	
 	Url.prototype.parse = function(url, parseQueryString, slashesDenoteHost) {
-	  if (!isString(url)) {
+	  if (!util.isString(url)) {
 	    throw new TypeError("Parameter 'url' must be a string, not " + typeof url);
 	  }
+	
+	  // Copy chrome, IE, opera backslash-handling behavior.
+	  // Back slashes before the query string get converted to forward slashes
+	  // See: https://code.google.com/p/chromium/issues/detail?id=25916
+	  var queryIndex = url.indexOf('?'),
+	      splitter =
+	          (queryIndex !== -1 && queryIndex < url.indexOf('#')) ? '?' : '#',
+	      uSplit = url.split(splitter),
+	      slashRegex = /\\/g;
+	  uSplit[0] = uSplit[0].replace(slashRegex, '/');
+	  url = uSplit.join(splitter);
 	
 	  var rest = url;
 	
 	  // trim before proceeding.
 	  // This is to support parse stuff like "  http://foo.com  \n"
 	  rest = rest.trim();
+	
+	  if (!slashesDenoteHost && url.split('#').length === 1) {
+	    // Try fast path regexp
+	    var simplePath = simplePathPattern.exec(rest);
+	    if (simplePath) {
+	      this.path = rest;
+	      this.href = rest;
+	      this.pathname = simplePath[1];
+	      if (simplePath[2]) {
+	        this.search = simplePath[2];
+	        if (parseQueryString) {
+	          this.query = querystring.parse(this.search.substr(1));
+	        } else {
+	          this.query = this.search.substr(1);
+	        }
+	      } else if (parseQueryString) {
+	        this.search = '';
+	        this.query = {};
+	      }
+	      return this;
+	    }
+	  }
 	
 	  var proto = protocolPattern.exec(rest);
 	  if (proto) {
@@ -847,18 +984,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	
 	    if (!ipv6Hostname) {
-	      // IDNA Support: Returns a puny coded representation of "domain".
-	      // It only converts the part of the domain name that
-	      // has non ASCII characters. I.e. it dosent matter if
-	      // you call it with a domain that already is in ASCII.
-	      var domainArray = this.hostname.split('.');
-	      var newOut = [];
-	      for (var i = 0; i < domainArray.length; ++i) {
-	        var s = domainArray[i];
-	        newOut.push(s.match(/[^A-Za-z0-9_-]/) ?
-	            'xn--' + punycode.encode(s) : s);
-	      }
-	      this.hostname = newOut.join('.');
+	      // IDNA Support: Returns a punycoded representation of "domain".
+	      // It only converts parts of the domain name that
+	      // have non-ASCII characters, i.e. it doesn't matter if
+	      // you call it with a domain that already is ASCII-only.
+	      this.hostname = punycode.toASCII(this.hostname);
 	    }
 	
 	    var p = this.port ? ':' + this.port : '';
@@ -885,6 +1015,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	    // need to be.
 	    for (var i = 0, l = autoEscape.length; i < l; i++) {
 	      var ae = autoEscape[i];
+	      if (rest.indexOf(ae) === -1)
+	        continue;
 	      var esc = encodeURIComponent(ae);
 	      if (esc === ae) {
 	        esc = escape(ae);
@@ -938,7 +1070,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  // If it's an obj, this is a no-op.
 	  // this way, you can call url_format() on strings
 	  // to clean up potentially wonky urls.
-	  if (isString(obj)) obj = urlParse(obj);
+	  if (util.isString(obj)) obj = urlParse(obj);
 	  if (!(obj instanceof Url)) return Url.prototype.format.call(obj);
 	  return obj.format();
 	}
@@ -969,7 +1101,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }
 	
 	  if (this.query &&
-	      isObject(this.query) &&
+	      util.isObject(this.query) &&
 	      Object.keys(this.query).length) {
 	    query = querystring.stringify(this.query);
 	  }
@@ -1013,16 +1145,18 @@ return /******/ (function(modules) { // webpackBootstrap
 	}
 	
 	Url.prototype.resolveObject = function(relative) {
-	  if (isString(relative)) {
+	  if (util.isString(relative)) {
 	    var rel = new Url();
 	    rel.parse(relative, false, true);
 	    relative = rel;
 	  }
 	
 	  var result = new Url();
-	  Object.keys(this).forEach(function(k) {
-	    result[k] = this[k];
-	  }, this);
+	  var tkeys = Object.keys(this);
+	  for (var tk = 0; tk < tkeys.length; tk++) {
+	    var tkey = tkeys[tk];
+	    result[tkey] = this[tkey];
+	  }
 	
 	  // hash is always overridden, no matter what.
 	  // even href="" will remove it.
@@ -1037,10 +1171,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	  // hrefs like //foo/bar always cut to the protocol.
 	  if (relative.slashes && !relative.protocol) {
 	    // take everything except the protocol from relative
-	    Object.keys(relative).forEach(function(k) {
-	      if (k !== 'protocol')
-	        result[k] = relative[k];
-	    });
+	    var rkeys = Object.keys(relative);
+	    for (var rk = 0; rk < rkeys.length; rk++) {
+	      var rkey = rkeys[rk];
+	      if (rkey !== 'protocol')
+	        result[rkey] = relative[rkey];
+	    }
 	
 	    //urlParse appends trailing / to urls like http://www.example.com
 	    if (slashedProtocol[result.protocol] &&
@@ -1062,9 +1198,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    // because that's known to be hostless.
 	    // anything else is assumed to be absolute.
 	    if (!slashedProtocol[relative.protocol]) {
-	      Object.keys(relative).forEach(function(k) {
+	      var keys = Object.keys(relative);
+	      for (var v = 0; v < keys.length; v++) {
+	        var k = keys[v];
 	        result[k] = relative[k];
-	      });
+	      }
 	      result.href = result.format();
 	      return result;
 	    }
@@ -1153,14 +1291,14 @@ return /******/ (function(modules) { // webpackBootstrap
 	    srcPath = srcPath.concat(relPath);
 	    result.search = relative.search;
 	    result.query = relative.query;
-	  } else if (!isNullOrUndefined(relative.search)) {
+	  } else if (!util.isNullOrUndefined(relative.search)) {
 	    // just pull out the search.
 	    // like href='?foo'.
 	    // Put this after the other two cases because it simplifies the booleans
 	    if (psychotic) {
 	      result.hostname = result.host = srcPath.shift();
 	      //occationaly the auth can get stuck only in host
-	      //this especialy happens in cases like
+	      //this especially happens in cases like
 	      //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
 	      var authInHost = result.host && result.host.indexOf('@') > 0 ?
 	                       result.host.split('@') : false;
@@ -1172,7 +1310,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    result.search = relative.search;
 	    result.query = relative.query;
 	    //to support http.request
-	    if (!isNull(result.pathname) || !isNull(result.search)) {
+	    if (!util.isNull(result.pathname) || !util.isNull(result.search)) {
 	      result.path = (result.pathname ? result.pathname : '') +
 	                    (result.search ? result.search : '');
 	    }
@@ -1199,15 +1337,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	  // then it must NOT get a trailing slash.
 	  var last = srcPath.slice(-1)[0];
 	  var hasTrailingSlash = (
-	      (result.host || relative.host) && (last === '.' || last === '..') ||
-	      last === '');
+	      (result.host || relative.host || srcPath.length > 1) &&
+	      (last === '.' || last === '..') || last === '');
 	
 	  // strip single dots, resolve double dots to parent dir
 	  // if the path tries to go above the root, `up` ends up > 0
 	  var up = 0;
 	  for (var i = srcPath.length; i >= 0; i--) {
 	    last = srcPath[i];
-	    if (last == '.') {
+	    if (last === '.') {
 	      srcPath.splice(i, 1);
 	    } else if (last === '..') {
 	      srcPath.splice(i, 1);
@@ -1242,7 +1380,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    result.hostname = result.host = isAbsolute ? '' :
 	                                    srcPath.length ? srcPath.shift() : '';
 	    //occationaly the auth can get stuck only in host
-	    //this especialy happens in cases like
+	    //this especially happens in cases like
 	    //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
 	    var authInHost = result.host && result.host.indexOf('@') > 0 ?
 	                     result.host.split('@') : false;
@@ -1266,7 +1404,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }
 	
 	  //to support request.http
-	  if (!isNull(result.pathname) || !isNull(result.search)) {
+	  if (!util.isNull(result.pathname) || !util.isNull(result.search)) {
 	    result.path = (result.pathname ? result.pathname : '') +
 	                  (result.search ? result.search : '');
 	  }
@@ -1288,21 +1426,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	  }
 	  if (host) this.hostname = host;
 	};
-	
-	function isString(arg) {
-	  return typeof arg === "string";
-	}
-	
-	function isObject(arg) {
-	  return typeof arg === 'object' && arg !== null;
-	}
-	
-	function isNull(arg) {
-	  return arg === null;
-	}
-	function isNullOrUndefined(arg) {
-	  return  arg == null;
-	}
 
 
 /***/ },
@@ -1858,16 +1981,38 @@ return /******/ (function(modules) { // webpackBootstrap
 
 /***/ },
 /* 5 */
-/***/ function(module, exports, __webpack_require__) {
+/***/ function(module, exports) {
 
 	'use strict';
 	
-	exports.decode = exports.parse = __webpack_require__(6);
-	exports.encode = exports.stringify = __webpack_require__(7);
+	module.exports = {
+	  isString: function(arg) {
+	    return typeof(arg) === 'string';
+	  },
+	  isObject: function(arg) {
+	    return typeof(arg) === 'object' && arg !== null;
+	  },
+	  isNull: function(arg) {
+	    return arg === null;
+	  },
+	  isNullOrUndefined: function(arg) {
+	    return arg == null;
+	  }
+	};
 
 
 /***/ },
 /* 6 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	exports.decode = exports.parse = __webpack_require__(7);
+	exports.encode = exports.stringify = __webpack_require__(8);
+
+
+/***/ },
+/* 7 */
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -1953,7 +2098,7 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ },
-/* 7 */
+/* 8 */
 /***/ function(module, exports) {
 
 	// Copyright Joyent, Inc. and other Node contributors.
@@ -2023,27 +2168,30 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ },
-/* 8 */
-/***/ function(module, exports, __webpack_require__) {
-
-	'use strict';
-	
-	var Stringify = __webpack_require__(9);
-	var Parse = __webpack_require__(11);
-	
-	module.exports = {
-	    stringify: Stringify,
-	    parse: Parse
-	};
-
-
-/***/ },
 /* 9 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var Utils = __webpack_require__(10);
+	var stringify = __webpack_require__(10);
+	var parse = __webpack_require__(13);
+	var formats = __webpack_require__(12);
+	
+	module.exports = {
+	    formats: formats,
+	    parse: parse,
+	    stringify: stringify
+	};
+
+
+/***/ },
+/* 10 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+	
+	var utils = __webpack_require__(11);
+	var formats = __webpack_require__(12);
 	
 	var arrayPrefixGenerators = {
 	    brackets: function brackets(prefix) {
@@ -2057,20 +2205,25 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	};
 	
+	var toISO = Date.prototype.toISOString;
+	
 	var defaults = {
 	    delimiter: '&',
-	    strictNullHandling: false,
-	    skipNulls: false,
 	    encode: true,
-	    encoder: Utils.encode
+	    encoder: utils.encode,
+	    serializeDate: function serializeDate(date) {
+	        return toISO.call(date);
+	    },
+	    skipNulls: false,
+	    strictNullHandling: false
 	};
 	
-	var stringify = function stringify(object, prefix, generateArrayPrefix, strictNullHandling, skipNulls, encoder, filter, sort, allowDots) {
+	var stringify = function stringify(object, prefix, generateArrayPrefix, strictNullHandling, skipNulls, encoder, filter, sort, allowDots, serializeDate, formatter) {
 	    var obj = object;
 	    if (typeof filter === 'function') {
 	        obj = filter(prefix, obj);
 	    } else if (obj instanceof Date) {
-	        obj = obj.toISOString();
+	        obj = serializeDate(obj);
 	    } else if (obj === null) {
 	        if (strictNullHandling) {
 	            return encoder ? encoder(prefix) : prefix;
@@ -2079,11 +2232,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	        obj = '';
 	    }
 	
-	    if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean' || Utils.isBuffer(obj)) {
+	    if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean' || utils.isBuffer(obj)) {
 	        if (encoder) {
-	            return [encoder(prefix) + '=' + encoder(obj)];
+	            return [formatter(encoder(prefix)) + '=' + formatter(encoder(obj))];
 	        }
-	        return [prefix + '=' + String(obj)];
+	        return [formatter(prefix) + '=' + formatter(String(obj))];
 	    }
 	
 	    var values = [];
@@ -2108,9 +2261,33 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 	
 	        if (Array.isArray(obj)) {
-	            values = values.concat(stringify(obj[key], generateArrayPrefix(prefix, key), generateArrayPrefix, strictNullHandling, skipNulls, encoder, filter, sort, allowDots));
+	            values = values.concat(stringify(
+	                obj[key],
+	                generateArrayPrefix(prefix, key),
+	                generateArrayPrefix,
+	                strictNullHandling,
+	                skipNulls,
+	                encoder,
+	                filter,
+	                sort,
+	                allowDots,
+	                serializeDate,
+	                formatter
+	            ));
 	        } else {
-	            values = values.concat(stringify(obj[key], prefix + (allowDots ? '.' + key : '[' + key + ']'), generateArrayPrefix, strictNullHandling, skipNulls, encoder, filter, sort, allowDots));
+	            values = values.concat(stringify(
+	                obj[key],
+	                prefix + (allowDots ? '.' + key : '[' + key + ']'),
+	                generateArrayPrefix,
+	                strictNullHandling,
+	                skipNulls,
+	                encoder,
+	                filter,
+	                sort,
+	                allowDots,
+	                serializeDate,
+	                formatter
+	            ));
 	        }
 	    }
 	
@@ -2127,6 +2304,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var encoder = encode ? (typeof options.encoder === 'function' ? options.encoder : defaults.encoder) : null;
 	    var sort = typeof options.sort === 'function' ? options.sort : null;
 	    var allowDots = typeof options.allowDots === 'undefined' ? false : options.allowDots;
+	    var serializeDate = typeof options.serializeDate === 'function' ? options.serializeDate : defaults.serializeDate;
+	    if (typeof options.format === 'undefined') {
+	        options.format = formats.default;
+	    } else if (!Object.prototype.hasOwnProperty.call(formats.formatters, options.format)) {
+	        throw new TypeError('Unknown format option provided.');
+	    }
+	    var formatter = formats.formatters[options.format];
 	    var objKeys;
 	    var filter;
 	
@@ -2138,7 +2322,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	        filter = options.filter;
 	        obj = filter('', obj);
 	    } else if (Array.isArray(options.filter)) {
-	        objKeys = filter = options.filter;
+	        filter = options.filter;
+	        objKeys = filter;
 	    }
 	
 	    var keys = [];
@@ -2173,7 +2358,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	            continue;
 	        }
 	
-	        keys = keys.concat(stringify(obj[key], key, generateArrayPrefix, strictNullHandling, skipNulls, encoder, filter, sort, allowDots));
+	        keys = keys.concat(stringify(
+	            obj[key],
+	            key,
+	            generateArrayPrefix,
+	            strictNullHandling,
+	            skipNulls,
+	            encoder,
+	            filter,
+	            sort,
+	            allowDots,
+	            serializeDate,
+	            formatter
+	        ));
 	    }
 	
 	    return keys.join(delimiter);
@@ -2181,22 +2378,24 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ },
-/* 10 */
+/* 11 */
 /***/ function(module, exports) {
 
 	'use strict';
 	
+	var has = Object.prototype.hasOwnProperty;
+	
 	var hexTable = (function () {
-	    var array = new Array(256);
+	    var array = [];
 	    for (var i = 0; i < 256; ++i) {
-	        array[i] = '%' + ((i < 16 ? '0' : '') + i.toString(16)).toUpperCase();
+	        array.push('%' + ((i < 16 ? '0' : '') + i.toString(16)).toUpperCase());
 	    }
 	
 	    return array;
 	}());
 	
 	exports.arrayToObject = function (source, options) {
-	    var obj = options.plainObjects ? Object.create(null) : {};
+	    var obj = options && options.plainObjects ? Object.create(null) : {};
 	    for (var i = 0; i < source.length; ++i) {
 	        if (typeof source[i] !== 'undefined') {
 	            obj[i] = source[i];
@@ -2230,6 +2429,21 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var mergeTarget = target;
 	    if (Array.isArray(target) && !Array.isArray(source)) {
 	        mergeTarget = exports.arrayToObject(target, options);
+	    }
+	
+	    if (Array.isArray(target) && Array.isArray(source)) {
+	        source.forEach(function (item, i) {
+	            if (has.call(target, i)) {
+	                if (target[i] && typeof target[i] === 'object') {
+	                    target[i] = exports.merge(target[i], item, options);
+	                } else {
+	                    target.push(item);
+	                }
+	            } else {
+	                target[i] = item;
+	            }
+	        });
+	        return target;
 	    }
 	
 	    return Object.keys(source).reduce(function (acc, key) {
@@ -2329,10 +2543,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	
 	    var keys = Object.keys(obj);
-	    for (var j = 0; j < keys.length; ++j) {
-	        var key = keys[j];
+	    keys.forEach(function (key) {
 	        obj[key] = exports.compact(obj[key], refs);
-	    }
+	    });
 	
 	    return obj;
 	};
@@ -2351,23 +2564,49 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 /***/ },
-/* 11 */
+/* 12 */
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	var replace = String.prototype.replace;
+	var percentTwenties = /%20/g;
+	
+	module.exports = {
+	    'default': 'RFC3986',
+	    formatters: {
+	        RFC1738: function (value) {
+	            return replace.call(value, percentTwenties, '+');
+	        },
+	        RFC3986: function (value) {
+	            return value;
+	        }
+	    },
+	    RFC1738: 'RFC1738',
+	    RFC3986: 'RFC3986'
+	};
+
+
+/***/ },
+/* 13 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
 	
-	var Utils = __webpack_require__(10);
+	var utils = __webpack_require__(11);
+	
+	var has = Object.prototype.hasOwnProperty;
 	
 	var defaults = {
+	    allowDots: false,
+	    allowPrototypes: false,
+	    arrayLimit: 20,
+	    decoder: utils.decode,
 	    delimiter: '&',
 	    depth: 5,
-	    arrayLimit: 20,
 	    parameterLimit: 1000,
-	    strictNullHandling: false,
 	    plainObjects: false,
-	    allowPrototypes: false,
-	    allowDots: false,
-	    decoder: Utils.decode
+	    strictNullHandling: false
 	};
 	
 	var parseValues = function parseValues(str, options) {
@@ -2378,21 +2617,18 @@ return /******/ (function(modules) { // webpackBootstrap
 	        var part = parts[i];
 	        var pos = part.indexOf(']=') === -1 ? part.indexOf('=') : part.indexOf(']=') + 1;
 	
+	        var key, val;
 	        if (pos === -1) {
-	            obj[options.decoder(part)] = '';
-	
-	            if (options.strictNullHandling) {
-	                obj[options.decoder(part)] = null;
-	            }
+	            key = options.decoder(part);
+	            val = options.strictNullHandling ? null : '';
 	        } else {
-	            var key = options.decoder(part.slice(0, pos));
-	            var val = options.decoder(part.slice(pos + 1));
-	
-	            if (Object.prototype.hasOwnProperty.call(obj, key)) {
-	                obj[key] = [].concat(obj[key]).concat(val);
-	            } else {
-	                obj[key] = val;
-	            }
+	            key = options.decoder(part.slice(0, pos));
+	            val = options.decoder(part.slice(pos + 1));
+	        }
+	        if (has.call(obj, key)) {
+	            obj[key] = [].concat(obj[key]).concat(val);
+	        } else {
+	            obj[key] = val;
 	        }
 	    }
 	
@@ -2454,7 +2690,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if (segment[1]) {
 	        // If we aren't using plain objects, optionally prefix keys
 	        // that would overwrite object prototype properties
-	        if (!options.plainObjects && Object.prototype.hasOwnProperty(segment[1])) {
+	        if (!options.plainObjects && has.call(Object.prototype, segment[1])) {
 	            if (!options.allowPrototypes) {
 	                return;
 	            }
@@ -2468,7 +2704,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var i = 0;
 	    while ((segment = child.exec(key)) !== null && i < options.depth) {
 	        i += 1;
-	        if (!options.plainObjects && Object.prototype.hasOwnProperty(segment[1].replace(/\[|\]/g, ''))) {
+	        if (!options.plainObjects && has.call(Object.prototype, segment[1].replace(/\[|\]/g, ''))) {
 	            if (!options.allowPrototypes) {
 	                continue;
 	            }
@@ -2492,7 +2728,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        throw new TypeError('Decoder has to be a function.');
 	    }
 	
-	    options.delimiter = typeof options.delimiter === 'string' || Utils.isRegExp(options.delimiter) ? options.delimiter : defaults.delimiter;
+	    options.delimiter = typeof options.delimiter === 'string' || utils.isRegExp(options.delimiter) ? options.delimiter : defaults.delimiter;
 	    options.depth = typeof options.depth === 'number' ? options.depth : defaults.depth;
 	    options.arrayLimit = typeof options.arrayLimit === 'number' ? options.arrayLimit : defaults.arrayLimit;
 	    options.parseArrays = options.parseArrays !== false;
@@ -2516,15 +2752,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	    for (var i = 0; i < keys.length; ++i) {
 	        var key = keys[i];
 	        var newObj = parseKeys(key, tempObj[key], options);
-	        obj = Utils.merge(obj, newObj, options);
+	        obj = utils.merge(obj, newObj, options);
 	    }
 	
-	    return Utils.compact(obj);
+	    return utils.compact(obj);
 	};
 
 
 /***/ },
-/* 12 */
+/* 14 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(process) {// Copyright Joyent, Inc. and other Node contributors.
@@ -2752,14 +2988,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	;
 	
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(13)))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(15)))
 
 /***/ },
-/* 13 */
+/* 15 */
 /***/ function(module, exports) {
 
 	// shim for using process in browser
-	
 	var process = module.exports = {};
 	
 	// cached from whatever global is present so that test runners that stub it
@@ -2770,22 +3005,84 @@ return /******/ (function(modules) { // webpackBootstrap
 	var cachedSetTimeout;
 	var cachedClearTimeout;
 	
+	function defaultSetTimout() {
+	    throw new Error('setTimeout has not been defined');
+	}
+	function defaultClearTimeout () {
+	    throw new Error('clearTimeout has not been defined');
+	}
 	(function () {
-	  try {
-	    cachedSetTimeout = setTimeout;
-	  } catch (e) {
-	    cachedSetTimeout = function () {
-	      throw new Error('setTimeout is not defined');
+	    try {
+	        if (typeof setTimeout === 'function') {
+	            cachedSetTimeout = setTimeout;
+	        } else {
+	            cachedSetTimeout = defaultSetTimout;
+	        }
+	    } catch (e) {
+	        cachedSetTimeout = defaultSetTimout;
 	    }
-	  }
-	  try {
-	    cachedClearTimeout = clearTimeout;
-	  } catch (e) {
-	    cachedClearTimeout = function () {
-	      throw new Error('clearTimeout is not defined');
+	    try {
+	        if (typeof clearTimeout === 'function') {
+	            cachedClearTimeout = clearTimeout;
+	        } else {
+	            cachedClearTimeout = defaultClearTimeout;
+	        }
+	    } catch (e) {
+	        cachedClearTimeout = defaultClearTimeout;
 	    }
-	  }
 	} ())
+	function runTimeout(fun) {
+	    if (cachedSetTimeout === setTimeout) {
+	        //normal enviroments in sane situations
+	        return setTimeout(fun, 0);
+	    }
+	    // if setTimeout wasn't available but was latter defined
+	    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+	        cachedSetTimeout = setTimeout;
+	        return setTimeout(fun, 0);
+	    }
+	    try {
+	        // when when somebody has screwed with setTimeout but no I.E. maddness
+	        return cachedSetTimeout(fun, 0);
+	    } catch(e){
+	        try {
+	            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+	            return cachedSetTimeout.call(null, fun, 0);
+	        } catch(e){
+	            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+	            return cachedSetTimeout.call(this, fun, 0);
+	        }
+	    }
+	
+	
+	}
+	function runClearTimeout(marker) {
+	    if (cachedClearTimeout === clearTimeout) {
+	        //normal enviroments in sane situations
+	        return clearTimeout(marker);
+	    }
+	    // if clearTimeout wasn't available but was latter defined
+	    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+	        cachedClearTimeout = clearTimeout;
+	        return clearTimeout(marker);
+	    }
+	    try {
+	        // when when somebody has screwed with setTimeout but no I.E. maddness
+	        return cachedClearTimeout(marker);
+	    } catch (e){
+	        try {
+	            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+	            return cachedClearTimeout.call(null, marker);
+	        } catch (e){
+	            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+	            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+	            return cachedClearTimeout.call(this, marker);
+	        }
+	    }
+	
+	
+	
+	}
 	var queue = [];
 	var draining = false;
 	var currentQueue;
@@ -2810,7 +3107,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if (draining) {
 	        return;
 	    }
-	    var timeout = cachedSetTimeout(cleanUpNextTick);
+	    var timeout = runTimeout(cleanUpNextTick);
 	    draining = true;
 	
 	    var len = queue.length;
@@ -2827,7 +3124,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	    currentQueue = null;
 	    draining = false;
-	    cachedClearTimeout(timeout);
+	    runClearTimeout(timeout);
 	}
 	
 	process.nextTick = function (fun) {
@@ -2839,7 +3136,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    }
 	    queue.push(new Item(fun, args));
 	    if (queue.length === 1 && !draining) {
-	        cachedSetTimeout(drainQueue, 0);
+	        runTimeout(drainQueue);
 	    }
 	};
 	
