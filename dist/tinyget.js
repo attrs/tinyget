@@ -119,6 +119,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	  var ieversion = ie();
 	  
 	  if( cors && ieversion && ieversion <= 9 ) {
+	    if( !window.XDomainRequest ) return done(new Error('browser does not support CORS ajax request'));
+	    
 	    var xd = new XDomainRequest();
 	    
 	    xd.onload = function(e) {
