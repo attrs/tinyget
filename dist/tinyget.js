@@ -200,7 +200,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    
 	    xhr.open(method, url, !sync);
 	    xhr.withCredentials = credentials ? true : false;
-	  
+	    
 	    for(var key in headers ) 
 	      xhr.setRequestHeader(key, headers[key]);
 	    
@@ -225,7 +225,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /***/ function(module, exports, __webpack_require__) {
 
 	var URL = __webpack_require__(2);
-	var qs = __webpack_require__(6);
+	var querystring = __webpack_require__(6);
 	var path = __webpack_require__(9);
 	var debug = false;
 	var impl = {};
@@ -241,6 +241,18 @@ return /******/ (function(modules) { // webpackBootstrap
 	    done(result.error || null, result.data || null, result.response || null);
 	  }
 	};
+	
+	function qryfy(o) {
+	  if( !o || typeof o !== 'object' ) return '';
+	  
+	  var result = {};
+	  for(var k in o) {
+	    var value = o[k];
+	    if( value !== null && value !== undefined ) result[k] = value;
+	  }
+	  
+	  return querystring.stringify(result);
+	}
 	
 	function Tinyget(endpoint, parent) {
 	  endpoint = endpoint || '';
@@ -479,7 +491,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	          if( typeof url !== 'string' ) return fn(new Error('url must be a string: ' + typeof url));
 	          
 	          if( qry ) {
-	            if( typeof qry === 'object' ) qry = qs.stringify(qry);
+	            if( typeof qry === 'object' ) qry = qryfy(qry);
 	            if( typeof qry === 'string' ) {
 	              if( ~url.indexOf('?') ) url = url + '&' + qry;
 	              else url = url + '?' + qry;
@@ -497,7 +509,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            } else if( contentType && ~contentType.indexOf('json') ) {
 	              payload = typeof payload === 'object' ? JSON.stringify(payload) : payload.toString();
 	            } else if( !contentType && contentType === 'application/x-www-form-urlencoded' ) {
-	              payload = typeof payload === 'string' ? payload : qs.stringify(payload);
+	              payload = typeof payload === 'string' ? payload : qryfy(payload);
 	            } else if( !contentType && typeof payload === 'object' ) {
 	              contentType = 'application/json';
 	              payload = JSON.stringify(payload);
