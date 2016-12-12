@@ -492,7 +492,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	          
 	          if( qry ) {
 	            if( typeof qry === 'object' ) qry = qryfy(qry);
-	            if( typeof qry === 'string' ) {
+	            
+	            if( typeof qry === 'string' && qry ) {
 	              if( ~url.indexOf('?') ) url = url + '&' + qry;
 	              else url = url + '?' + qry;
 	            }
