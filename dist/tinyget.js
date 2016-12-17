@@ -148,7 +148,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 	    
 	    xd.open(method, url);
-	    xd.withCredentials = credentials ? true : false;
 	    
 	    for(var key in headers ) {
 	      console.warn('[tinyget] XDomainRequest cannot set request header, header ignored ', key, headers[key]);
@@ -227,6 +226,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	var URL = __webpack_require__(2);
 	var querystring = __webpack_require__(6);
 	var path = __webpack_require__(9);
+	var Events = __webpack_require__(11);
 	var debug = false;
 	var impl = {};
 	
@@ -254,65 +254,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	  return querystring.stringify(result);
 	}
 	
-	function Tinyget(endpoint, parent) {
-	  endpoint = endpoint || '';
-	  if( typeof endpoint !== 'string' ) throw new TypeError('illegal type of endpoint url:' + endpoint);
-	  endpoint = endpoint.trim();
-	  endpoint = (endpoint[endpoint.length - 1] !== '/') ? (endpoint + '/') : endpoint;
-	  
-	  var events = (function() {
-	    var listeners = {}, pause = false;
-	    
-	    function fire(type, detail) {
-	      if( pause ) return;
-	      (listeners[type] || []).forEach(function(listener) {
-	        listener({
-	          type: type,
-	          detail: detail
-	        });
-	      });
-	    }
-	    
-	    function on(type, fn) {
-	      listeners[type] = listeners[type] || [];
-	      listeners[type].push(fn);
-	    }
-	    
-	    function once(type, fn) {
-	      var wrap = function(e) {
-	        off(type, wrap);
-	        return fn(e);
-	      };
-	      on(type, wrap);
-	    }
-	    
-	    function off(type, fn) {
-	      var fns = listeners[type];
-	      if( fns ) for(var i;~(i = fns.indexOf(fn));) fns.splice(i, 1);
-	    }
-	    
-	    function pause() {
-	      pause = true;
-	    }
-	    
-	    function resume() {
-	      pause = false;
-	    }
-	    
-	    function active(b) {
-	      pause = !b;
-	    }
-	    
-	    return {
-	      fire: fire,
-	      on: on,
-	      once: once,
-	      off: off,
-	      pause: pause,
-	      resume: resume,
-	      active: active
-	    }
-	  })();
+	function Tinyget(parent) {
+	  var events = Events();
 	  
 	  function tinyget(options, callback) {
 	    options = options || {};
@@ -417,7 +360,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      'delete': tinyget['delete'],
 	      exec: function(odone) {
 	        if( !options ) return done(new Error('missing options'));
-	        if( !impl.connector ) return done(new Error('connector not found'));
+	        if( !impl.connector ) return done(new Error('connector impl not found'));
 	        if( typeof odone !== 'function' ) odone = function() {};
 	        
 	        var fireevents = options.event === false ? false : true;
@@ -452,15 +395,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	          options: options
 	        });
 	        
+	        var ohooks = options.hooks;
 	        var hooks = {
-	          before: (options.hooks && options.hooks.before) || tinyget.hook('before'),
-	          after: (options.hooks && options.hooks.after) || tinyget.hook('after'),
-	          callback: (options.hooks && options.hooks.callback) || tinyget.hook('callback')
+	          before: (ohooks && 'before' in ohooks) || tinyget.hook('before'),
+	          after: (ohooks && 'after' in ohooks) || tinyget.hook('after'),
+	          callback: (ohooks && 'callback' in ohooks) || tinyget.hook('callback')
 	        };
 	        
-	        if( options.hooks === false || hooks.before === false ) hooks.before = DEFAULT_HOOKS.before;
-	        if( options.hooks === false || hooks.after === false ) hooks.after = DEFAULT_HOOKS.after;
-	        if( options.hooks === false || hooks.callback === false ) hooks.callback = DEFAULT_HOOKS.callback;
+	        if( ohooks === false || !hooks.before ) hooks.before = DEFAULT_HOOKS.before;
+	        if( ohooks === false || !hooks.after ) hooks.after = DEFAULT_HOOKS.after;
+	        if( ohooks === false || !hooks.callback ) hooks.callback = DEFAULT_HOOKS.callback;
 	        
 	        function action(options) {
 	          var url = options.url;
@@ -476,6 +420,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	          var onerror = options.onerror;
 	          var sync = options.sync === true ? true : false;
 	          var cache = options.cache === false ? false : true;
+	          var endpoint = tinyget.endpoint();
 	          
 	          if( typeof url === 'function' ) url = url();
 	          if( typeof method === 'function' ) method = method();
@@ -614,7 +559,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 	        
 	        hooks.before(options, function(err, options) {
-	          if( err ) hooks.callback({error:err}, done);
+	          if( err ) return hooks.callback({error:err}, done);
 	          action(options);
 	        });
 	        return this;
@@ -625,31 +570,33 @@ return /******/ (function(modules) { // webpackBootstrap
 	    return chain;
 	  }
 	  
-	  tinyget.endpoint = function(url) {
-	    if( !arguments.length ) return endpoint;
-	    if( url === false ) url = '';
-	    if( typeof url !== 'string' ) throw new TypeError('illegal type of endpoint url:' + url);
-	    endpoint = url;
+	  var _endpoint = '/';
+	  tinyget.endpoint = function(endpoint) {
+	    if( !arguments.length ) return _endpoint;
+	    if( !endpoint ) return;
+	    if( typeof endpoint !== 'string' ) throw new TypeError('endpoint must be a string: ' + endpoint);
+	    
+	    _endpoint = (endpoint[endpoint.length - 1] !== '/') ? (endpoint + '/') : endpoint;
 	    return this;
 	  };
 	  
-	  tinyget.branch = function(subpath) {
-	    var url = ~subpath.indexOf('://') ? subpath : URL.resolve(endpoint, subpath);
-	    if( debug ) console.info('[tinyget] new branch', subpath, url);
-	    return new Tinyget(url, tinyget);
+	  tinyget.branch = function(endpoint) {
+	    if( endpoint && typeof endpoint !== 'string' ) throw new TypeError('endpoint must be a string: ' + endpoint);
+	    
+	    endpoint = endpoint && (~endpoint.indexOf('://') ? endpoint : URL.resolve(_endpoint, endpoint));
+	    var instance = new Tinyget(tinyget);
+	    if( endpoint ) instance.endpoint(endpoint);
+	    
+	    if( debug ) console.info('[tinyget] new branch', url, instance.endpoint());
+	    return instance;
 	  };
 	  
-	  var hooks = tinyget.hooks = {
-	    before: DEFAULT_HOOKS.before,
-	    after: DEFAULT_HOOKS.after,
-	    callback: DEFAULT_HOOKS.callback,
-	  };
-	  
+	  tinyget.hooks = {};
 	  tinyget.hook = function(type, fn) {
-	    if( arguments.length === 1 ) return hooks[type] || (parent && parent.hooks[type]) || DEFAULT_HOOKS[type];
+	    if( arguments.length === 1 ) return tinyget.hooks[type] || (parent && parent.hooks[type]) || DEFAULT_HOOKS[type];
 	    if( typeof type !== 'string' ) throw new TypeError('hook type must be a string:' + type);
 	    if( typeof fn !== 'function' ) throw new TypeError('hook fn must be a function:' + fn);
-	    hooks[type] = fn;
+	    tinyget.hooks[type] = fn;
 	    return this;
 	  };
 	  
@@ -2610,6 +2557,64 @@ return /******/ (function(modules) { // webpackBootstrap
 	};
 	process.umask = function() { return 0; };
 
+
+/***/ },
+/* 11 */
+/***/ function(module, exports) {
+
+	module.exports = function() {
+	  var listeners = {}, pause = false;
+	  
+	  function fire(type, detail) {
+	    if( pause ) return;
+	    (listeners[type] || []).forEach(function(listener) {
+	      listener({
+	        type: type,
+	        detail: detail
+	      });
+	    });
+	  }
+	  
+	  function on(type, fn) {
+	    listeners[type] = listeners[type] || [];
+	    listeners[type].push(fn);
+	  }
+	  
+	  function once(type, fn) {
+	    var wrap = function(e) {
+	      off(type, wrap);
+	      return fn(e);
+	    };
+	    on(type, wrap);
+	  }
+	  
+	  function off(type, fn) {
+	    var fns = listeners[type];
+	    if( fns ) for(var i;~(i = fns.indexOf(fn));) fns.splice(i, 1);
+	  }
+	  
+	  function pause() {
+	    pause = true;
+	  }
+	  
+	  function resume() {
+	    pause = false;
+	  }
+	  
+	  function active(b) {
+	    pause = !b;
+	  }
+	  
+	  return {
+	    fire: fire,
+	    on: on,
+	    once: once,
+	    off: off,
+	    pause: pause,
+	    resume: resume,
+	    active: active
+	  }
+	};
 
 /***/ }
 /******/ ])
