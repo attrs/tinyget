@@ -104,7 +104,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	base.impl.connector = function(options, done) {
 	  var finished = false;
 	  var url = options.url;
-	  var method = options.method;
+	  var method = options.method || 'GET';
 	  var payload = options.payload;
 	  var sync = options.sync;
 	  var credentials = options.credentials;
@@ -133,7 +133,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 	    
 	    xd.onerror = function(e) {
-	      done(new Error('[tinyget] ajax error(' + xd.status + ') "' + url + '"'), {
+	      done(new Error('[tinyget] ajax error(' + xd.status + ') ' + method + ' "' + url + '"'), {
 	        status: 500,
 	        text: xd.responseText
 	      });
@@ -144,7 +144,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 	    
 	    xd.ontimeout = function(e) {
-	      done(new Error('[tinyget] ajax error(timeout) "' + url + '"'), {
+	      done(new Error('[tinyget] ajax error(timeout) ' + method + ' "' + url + '"'), {
 	        status: 500
 	      });
 	    };
@@ -177,7 +177,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	      };
 	      
 	      xhr.onerror = function(e) {
-	        done(new Error('[tinyget] ajax error(' + xhr.status + ') "' + url + '"'), createResponse(xhr));
+	        done(new Error('[tinyget] ajax error(' + xhr.status + ') ' + method + ' "' + url + '"'), createResponse(xhr));
 	      };
 	    } else {
 	      xhr.onreadystatechange = function(e) {
@@ -192,11 +192,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	    };
 	    
 	    xhr.onabort = function(e) {
-	      done(new Error('[tinyget] ajax error(aborted) "' + url + '"'), createResponse(xhr));
+	      done(new Error('[tinyget] ajax error(aborted) ' + method + ' "' + url + '"'), createResponse(xhr));
 	    };
 	    
 	    xhr.ontimeout = function(e) {
-	      done(new Error('[tinyget] ajax error(timeout) "' + url + '"'), createResponse(xhr));
+	      done(new Error('[tinyget] ajax error(timeout) ' + method + ' "' + url + '"'), createResponse(xhr));
 	    };
 	    
 	    xhr.open(method, url, !sync);
@@ -1887,7 +1887,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        
 	        function action(options) {
 	          var url = options.url;
-	          var method = options.method || 'get';
+	          var method = (options.method || 'get').toUpperCase();
 	          var qry = options.qry;
 	          var payload = options.payload || options.body;
 	          var headers = options.headers || {};
@@ -1970,7 +1970,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            credentials: options.credentials || options.withCredentials
 	          }, function(err, response) {
 	            if( !err && (response.status < 200 || response.status >= 300) )
-	              err = new Error('[tinyget] error status(' + response.status + ') "' + options.url + '"');
+	              err = new Error('[tinyget] error status(' + response.status + '): ' + method + ' "' + url + '"');
 	            
 	            fireevents && events.fire('response', {
 	              options: options,
