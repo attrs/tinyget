@@ -2052,7 +2052,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	  var _endpoint = '/';
 	  tinyget.endpoint = function(endpoint) {
 	    if( !arguments.length ) return _endpoint;
-	    if( !endpoint ) return;
+	    if( !endpoint ) return this;
 	    if( typeof endpoint !== 'string' ) throw new TypeError('endpoint must be a string: ' + endpoint);
 	    
 	    _endpoint = (endpoint[endpoint.length - 1] !== '/') ? (endpoint + '/') : endpoint;
