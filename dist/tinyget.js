@@ -104,14 +104,15 @@ return /******/ (function(modules) { // webpackBootstrap
 	base.impl.connector = function(options, done) {
 	  var finished = false;
 	  var url = options.url;
-	  var method = options.method || 'GET';
+	  var method = options.method;
 	  var payload = options.payload;
 	  var sync = options.sync;
 	  var credentials = options.credentials;
 	  var headers = options.headers;
 	  var responseType = options.responseType;
 	  var onprogress = options.onprogress;
-	  var xdr = 'xdr' in options ? options.xdr : (function() {
+	  var xdr = options.xdr;
+	  var crossdomain = (function() {
 	    if( url && ~url.indexOf('://') ) {
 	      var parsed = URL.parse(url);
 	      if( parsed.hostname && parsed.hostname !== document.domain ) return true;
@@ -120,7 +121,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    return false;
 	  })();
 	  
-	  if( xdr && window.XDomainRequest ) {
+	  if( crossdomain && xdr && window.XDomainRequest ) {
 	    if( !window.XDomainRequest ) return done(new Error('browser does not support CORS ajax request'));
 	    
 	    var xd = new XDomainRequest();
@@ -158,57 +159,60 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if( responseType ) xd.responseType = responseType;
 	    if( payload ) xd.send(payload);
 	    else xd.send();
-	  } else {
-	    var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
 	    
-	    if( onprogress ) {
-	      if( xhr.upload ) {
-	        xhr.upload.addEventListener('progress', function(e) {
-	          onprogress.call(xhr, e);
-	        }, false);
-	      } else {
-	        console.warn('[tinyget] browser does not support upload progress.');
-	      }
-	    }
-	    
-	    if( 'onload' in xhr ) {
-	      xhr.onload = function(e) {
-	        done(null, createResponse(xhr));
-	      };
-	      
-	      xhr.onerror = function(e) {
-	        done(new Error('[tinyget] ajax error(' + xhr.status + ') ' + method + ' "' + url + '"'), createResponse(xhr));
-	      };
-	    } else {
-	      xhr.onreadystatechange = function(e) {
-	        if( xhr.readyState == 4 ) {
-	          done(null, createResponse(xhr));
-	        }
-	      };
-	    }
-	    
-	    xhr.onprogress = function(e) {
-	      onprogress && onprogress.call(xhr, e);
-	    };
-	    
-	    xhr.onabort = function(e) {
-	      done(new Error('[tinyget] ajax error(aborted) ' + method + ' "' + url + '"'), createResponse(xhr));
-	    };
-	    
-	    xhr.ontimeout = function(e) {
-	      done(new Error('[tinyget] ajax error(timeout) ' + method + ' "' + url + '"'), createResponse(xhr));
-	    };
-	    
-	    xhr.open(method, url, !sync);
-	    xhr.withCredentials = credentials ? true : false;
-	    
-	    for(var key in headers ) 
-	      xhr.setRequestHeader(key, headers[key]);
-	    
-	    if( responseType ) xhr.responseType = responseType;
-	    if( payload ) xhr.send(payload);
-	    else xhr.send();
+	    return;
 	  }
+	  
+	  
+	  var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
+	  
+	  if( onprogress ) {
+	    if( xhr.upload ) {
+	      xhr.upload.addEventListener('progress', function(e) {
+	        onprogress.call(xhr, e);
+	      }, false);
+	    } else {
+	      console.warn('[tinyget] browser does not support upload progress.');
+	    }
+	  }
+	  
+	  if( 'onload' in xhr ) {
+	    xhr.onload = function(e) {
+	      done(null, createResponse(xhr));
+	    };
+	    
+	    xhr.onerror = function(e) {
+	      done(new Error('[tinyget] ajax error(' + xhr.status + ') ' + method + ' "' + url + '"'), createResponse(xhr));
+	    };
+	  } else {
+	    xhr.onreadystatechange = function(e) {
+	      if( xhr.readyState == 4 ) {
+	        done(null, createResponse(xhr));
+	      }
+	    };
+	  }
+	  
+	  xhr.onprogress = function(e) {
+	    onprogress && onprogress.call(xhr, e);
+	  };
+	  
+	  xhr.onabort = function(e) {
+	    done(new Error('[tinyget] ajax error(aborted) ' + method + ' "' + url + '"'), createResponse(xhr));
+	  };
+	  
+	  xhr.ontimeout = function(e) {
+	    done(new Error('[tinyget] ajax error(timeout) ' + method + ' "' + url + '"'), createResponse(xhr));
+	  };
+	  
+	  xhr.open(method, url, !sync);
+	  xhr.withCredentials = credentials ? true : false;
+	  
+	  for(var key in headers ) 
+	    xhr.setRequestHeader(key, headers[key]);
+	  
+	  if( responseType ) xhr.responseType = responseType;
+	  if( payload ) xhr.send(payload);
+	  else xhr.send();
 	};
 	
 	base.impl.toXml = function(text) {
@@ -1708,6 +1712,9 @@ return /******/ (function(modules) { // webpackBootstrap
 	var Events = __webpack_require__(11);
 	var debug = false;
 	var impl = {};
+	var profiles = {
+	  'rest': __webpack_require__(12)
+	};
 	
 	var DEFAULT_HOOKS = {
 	  before: function(options, done) {
@@ -1733,6 +1740,11 @@ return /******/ (function(modules) { // webpackBootstrap
 	  return querystring.stringify(result);
 	}
 	
+	function isempty(o) {
+	  return (o === '' || o === null || o === undefined);
+	}
+	
+	
 	function Tinyget(parent) {
 	  var events = Events();
 	  
@@ -1741,6 +1753,22 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if( typeof options === 'string' ) options = { url:options };
 	    
 	    var chain = {
+	      options: function(o, renew) {
+	        if( !arguments.length ) return options;
+	        if( renew ) this.clear();
+	        for(var k in o ) options[k] = o[k];
+	        return this;
+	      },
+	      clear: function() {
+	        var o = options;
+	        options = {};
+	        if( o.url ) options.url = o.url;
+	        return this;
+	      },
+	      method: function(method) {
+	        options.method = method || 'get';
+	        return this;
+	      },
 	      url: function(url) {
 	        if( !arguments.length ) return options.url;
 	        options.url = url;
@@ -1768,13 +1796,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	        options.hooks[type] = fn;
 	        return this;
 	      },
-	      cache: function(b) {
-	        if( !arguments.length ) return options.cache;
-	        options.cache = !!b;
-	        return this;
-	      },
 	      ondone: function(fn) {
 	        options.ondone = fn;
+	        return this;
+	      },
+	      onsuccess: function(fn) {
+	        options.onsuccess = fn;
 	        return this;
 	      },
 	      onerror: function(fn) {
@@ -1785,14 +1812,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	        options.onprogress = fn;
 	        return this;
 	      },
-	      credentials: function(b) {
-	        if( !arguments.length ) return options.credentials;
-	        options.credentials = !!b;
+	      cache: function(b) {
+	        if( !arguments.length ) return options.cache;
+	        if( typeof b === 'boolean' ) options.cache = b;
 	        return this;
 	      },
 	      sync: function(sync) {
 	        if( !arguments.length ) return options.sync;
-	        options.sync = sync;
+	        if( typeof b === 'boolean' ) options.sync = sync;
+	        return this;
+	      },
+	      credentials: function(b) {
+	        if( !arguments.length ) return options.credentials;
+	        if( typeof b === 'boolean' ) options.credentials = b;
 	        return this;
 	      },
 	      contentType: function(contentType) {
@@ -1835,7 +1867,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	      get: tinyget.get,
 	      post: tinyget.post,
 	      put: tinyget.put,
-	      options: tinyget.options,
 	      'delete': tinyget['delete'],
 	      exec: function(odone) {
 	        if( !options ) return done(new Error('missing options'));
@@ -1844,7 +1875,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        
 	        var fireevents = options.event === false ? false : true;
 	        
-	        function done(err, data, response) {
+	        var done = function(err, data, response) {
 	          if( err ) {
 	            fireevents && events.fire('error', {
 	              options: options,
@@ -1886,94 +1917,92 @@ return /******/ (function(modules) { // webpackBootstrap
 	        if( ohooks === false || !hooks.callback ) hooks.callback = DEFAULT_HOOKS.callback;
 	        
 	        function action(options) {
-	          var url = options.url;
-	          var method = (options.method || 'get').toUpperCase();
-	          var qry = options.qry;
-	          var payload = options.payload || options.body;
-	          var headers = options.headers || {};
-	          var contentType = options.contentType;
-	          var responseType = options.responseType;
-	          var type = options.type;
-	          var onprogress = options.onprogress;
-	          var ondone = options.ondone;
-	          var onerror = options.onerror;
-	          var sync = options.sync === true ? true : false;
-	          var cache = options.cache === false ? false : true;
-	          var endpoint = tinyget.endpoint();
+	          var o = {};
+	          for(var k in options) o[k] = options[k];
 	          
-	          if( typeof url === 'function' ) url = url();
-	          if( typeof method === 'function' ) method = method();
-	          if( typeof qry === 'function' ) qry = qry();
-	          if( typeof payload === 'function' ) payload = payload();
-	          if( typeof headers === 'function' ) headers = headers();
-	          if( typeof contentType === 'function' ) contentType = contentType();
-	          if( typeof responseType === 'function' ) responseType = responseType();
-	          if( typeof type === 'function' ) type = type();
-	          if( typeof sync === 'function' ) sync = sync();
+	          // validate options
+	          o.method = (o.method || 'get').toUpperCase();
+	          o.payload = o.payload || o.body;
+	          o.sync = o.sync === true ? true : false;
+	          o.cache = o.cache === false ? false : true;
+	          o.credentials = (o.credentials || o.withCredentials) === false ? false : true;
+	          o.endpoint = tinyget.endpoint();
 	          
-	          if( !url ) return done(new Error('missing url'));
-	          if( typeof url !== 'string' ) return fn(new Error('url must be a string: ' + typeof url));
+	          if( typeof o.url === 'function' ) o.url = o.url.call(chain, tinyget, chain);
+	          if( typeof o.method === 'function' ) o.method = o.method.call(chain, tinyget, chain);
+	          if( typeof o.qry === 'function' ) o.qry = o.qry.call(chain, tinyget, chain);
+	          if( typeof o.payload === 'function' ) o.payload = o.payload.call(chain, tinyget, chain);
+	          if( typeof o.headers === 'function' ) o.headers = o.headers.call(chain, tinyget, chain);
+	          if( typeof o.contentType === 'function' ) o.contentType = o.contentType.call(chain, tinyget, chain);
+	          if( typeof o.responseType === 'function' ) o.responseType = o.responseType.call(chain, tinyget, chain);
+	          if( typeof o.type === 'function' ) o.type = o.type.call(chain, tinyget, chain);
+	          if( typeof o.sync === 'function' ) o.sync = o.sync.call(chain, tinyget, chain);
 	          
-	          if( qry ) {
-	            if( typeof qry === 'object' ) qry = qryfy(qry);
+	          var dh = defheaders;
+	          if( dh ) {
+	            o.headers = o.headers || {};
+	            for(var k in dh) {
+	              if( !(k in o.headers) && !isempty(dh[k]) ) o.headers[k] = dh[k];
+	            }
+	          }
+	          
+	          dh = parent && parent.headers();
+	          if( dh ) {
+	            o.headers = o.headers || {};
+	            for(var k in defheaders) {
+	              if( !(k in o.headers) && !isempty(dh[k]) ) o.headers[k] = dh[k];
+	            }
+	          }
+	          
+	          
+	          if( !o.url ) return done(new Error('missing url'));
+	          if( typeof o.url !== 'string' ) return fn(new Error('url must be a string: ' + typeof o.url));
+	          
+	          if( o.qry ) {
+	            if( typeof o.qry === 'object' ) o.qry = qryfy(o.qry);
 	            
-	            if( typeof qry === 'string' && qry ) {
-	              if( ~url.indexOf('?') ) url = url + '&' + qry;
-	              else url = url + '?' + qry;
+	            if( typeof o.qry === 'string' && o.qry ) {
+	              if( ~o.url.indexOf('?') ) o.url = o.url + '&' + o.qry;
+	              else o.url = o.url + '?' + o.qry;
 	            }
 	          }
 	          
-	          if( !cache ) {
-	            if( ~url.indexOf('?') ) url = url + '&_ts=' + (new Date()).getTime();
-	            else url = url + '?_ts=' + (new Date()).getTime();
+	          if( !o.cache ) {
+	            if( ~o.url.indexOf('?') ) o.url = o.url + '&_ts=' + (new Date()).getTime();
+	            else o.url = o.url + '?_ts=' + (new Date()).getTime();
 	          }
 	          
-	          if( payload ) {
-	            if( 'FormData' in window && payload instanceof FormData ) {
-	              payload = payload;
-	            } else if( contentType && ~contentType.indexOf('json') ) {
-	              payload = typeof payload === 'object' ? JSON.stringify(payload) : payload.toString();
-	            } else if( !contentType && contentType === 'application/x-www-form-urlencoded' ) {
-	              payload = typeof payload === 'string' ? payload : qryfy(payload);
-	            } else if( !contentType && typeof payload === 'object' ) {
-	              contentType = 'application/json';
-	              payload = JSON.stringify(payload);
-	            } else if( !contentType && typeof payload === 'string' ) {
-	              contentType = 'application/x-www-form-urlencoded';
+	          if( o.payload ) {
+	            if( 'FormData' in window && o.payload instanceof FormData ) {
+	              o.payload = o.payload;
+	            } else if( o.contentType && ~o.contentType.indexOf('json') ) {
+	              o.payload = typeof o.payload === 'object' ? JSON.stringify(o.payload) : o.payload.toString();
+	            } else if( !o.contentType && o.contentType === 'application/x-www-form-urlencoded' ) {
+	              o.payload = typeof o.payload === 'string' ? o.payload : qryfy(o.payload);
+	            } else if( !o.contentType && typeof o.payload === 'object' ) {
+	              o.contentType = 'application/json';
+	              o.payload = JSON.stringify(o.payload);
+	            } else if( !co.ontentType && typeof o.payload === 'string' ) {
+	              o.contentType = 'application/x-www-form-urlencoded';
 	            }
 	          }
 	          
-	          if( contentType ) headers['Content-Type'] = contentType;
+	          if( o.contentType ) o.headers['Content-Type'] = o.contentType;
 	          
-	          if( url.trim()[0] === '/' ) url = '.' + url;
-	          url = URL.resolve(endpoint, url);
-	          if( debug ) console.info('[tinyget] conn', url);
+	          if( o.url.trim()[0] === '/' ) o.url = '.' + o.url;
+	          o.url = URL.resolve(o.endpoint, o.url);
+	          if( o.debug ) console.info('[tinyget] conn', o.url);
 	          
 	          fireevents && events.fire('connect', {
-	            options: options,
-	            url: url,
-	            method: method,
-	            payload: payload,
-	            headers: headers,
-	            responseType: responseType,
-	            sync: sync
+	            options: o
 	          });
 	          
-	          impl.connector({
-	            url: url,
-	            method: method,
-	            payload: payload,
-	            headers: headers,
-	            responseType: responseType,
-	            onprogress: onprogress,
-	            sync: sync,
-	            credentials: options.credentials || options.withCredentials
-	          }, function(err, response) {
+	          impl.connector(o, function(err, response) {
 	            if( !err && (response.status < 200 || response.status >= 300) )
-	              err = new Error('[tinyget] error status(' + response.status + '): ' + method + ' "' + url + '"');
+	              err = new Error('[tinyget] error status(' + response.status + '): ' + o.method + ' "' + o.url + '"');
 	            
 	            fireevents && events.fire('response', {
-	              options: options,
+	              options: o,
 	              error: err,
 	              response: response
 	            });
@@ -1982,23 +2011,23 @@ return /******/ (function(modules) { // webpackBootstrap
 	              if( response ) {
 	                try {
 	                  var text = response.text, xml = response.data, data;
-	                  var headers = response.headers || {};
+	                  var resheaders = response.headers = response.headers || {};
+	                  for(var k in resheaders) resheaders[k.toLowerCase()] = resheaders[k];
 	                  
-	                  for(var k in headers) headers[k.toLowerCase()] = headers[k];
-	                  response.headers = headers;
+	                  var contentType = resheaders['content-type'] || o.responseType;
 	                  
-	                  var contentType = headers['content-type'];
-	                  
-	                  if( responseType ) {
-	                    data = xml;
-	                  } else if( type === 'document' ) {
-	                    data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
-	                  } else if( type === 'xml' ) {
-	                    data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
-	                  } else if( type === 'json' ) {
-	                    data = JSON.parse(text);
-	                  } else if( type === 'text' ) {
-	                    data = text;
+	                  if( o.type ) {
+	                    if( o.type === 'document' ) {
+	                      data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
+	                    } else if( o.type === 'xml' ) {
+	                      data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
+	                    } else if( o.type === 'json' ) {
+	                      data = JSON.parse(text);
+	                    } else if( o.type === 'text' ) {
+	                      data = text;
+	                    } else {
+	                      data = xml || text;
+	                    }
 	                  } else {
 	                    if( contentType && ~contentType.indexOf('/xml') )
 	                      data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
@@ -2016,31 +2045,33 @@ return /******/ (function(modules) { // webpackBootstrap
 	                }
 	              }
 	              
-	              hooks.callback({
-	                options: options,
+	              hooks.callback.call(chain, {
+	                options: o,
 	                error: err,
 	                data: data,
 	                response: response
 	              }, function(err, result) {
-	                if( onerror && err ) onerror.call(this, err, response);
-	                if( ondone && !err ) ondone.call(this, result, response);
+	                if( o.onerror && err ) o.onerror.call(chain, err, response);
+	                if( o.onsuccess && !err ) o.onsuccess.call(chain, result, response);
+	                if( o.ondone ) o.ondone.call(chain, err, result, response);
 	                
-	                done.apply(this, arguments);
+	                done.apply(chain, arguments);
 	              });
 	            }
 	            
-	            hooks.after({
-	              options: options,
+	            hooks.after.call(chain, {
+	              options: o,
 	              error: err,
 	              response: response
 	            }, processing);
 	          });
 	        }
 	        
-	        hooks.before(options, function(err, options) {
-	          if( err ) return hooks.callback({error:err}, done);
+	        hooks.before.call(chain, options, function(err, options) {
+	          if( err ) return hooks.callback.call(chain, {error:err}, done);
 	          action(options);
 	        });
+	        
 	        return this;
 	      }
 	    }
@@ -2049,24 +2080,37 @@ return /******/ (function(modules) { // webpackBootstrap
 	    return chain;
 	  }
 	  
-	  var _endpoint = '/';
-	  tinyget.endpoint = function(endpoint) {
-	    if( !arguments.length ) return _endpoint;
-	    if( !endpoint ) return this;
-	    if( typeof endpoint !== 'string' ) throw new TypeError('endpoint must be a string: ' + endpoint);
+	  tinyget.parent = function() {
+	    return parent;
+	  };
+	  
+	  var _endpoint;
+	  tinyget.branchendpoint = function(ep) {
+	    return _endpoint;
+	  };
+	  
+	  tinyget.endpoint = function(ep) {
+	    if( !arguments.length ) {
+	      var parentendpoint = (parent && parent.endpoint()) || '/';
+	      var endpoint = (_endpoint && (~_endpoint.indexOf('://') ? _endpoint : URL.resolve(parentendpoint, _endpoint))) || parentendpoint;
+	      endpoint = (endpoint[endpoint.length - 1] !== '/') ? (endpoint + '/') : endpoint;
+	      
+	      return endpoint;
+	    }
 	    
-	    _endpoint = (endpoint[endpoint.length - 1] !== '/') ? (endpoint + '/') : endpoint;
+	    if( !ep ) return this;
+	    if( typeof ep !== 'string' ) throw new TypeError('endpoint must be a string: ' + ep);
+	    _endpoint = ep;
 	    return this;
 	  };
 	  
-	  tinyget.branch = function(endpoint) {
-	    if( endpoint && typeof endpoint !== 'string' ) throw new TypeError('endpoint must be a string: ' + endpoint);
+	  tinyget.branch = function(ep) {
+	    if( ep && typeof ep !== 'string' ) throw new TypeError('endpoint must be a string: ' + ep);
 	    
-	    endpoint = endpoint && (~endpoint.indexOf('://') ? endpoint : URL.resolve(_endpoint, endpoint));
 	    var instance = new Tinyget(tinyget);
-	    if( endpoint ) instance.endpoint(endpoint);
+	    instance.endpoint(ep);
 	    
-	    if( debug ) console.info('[tinyget] new branch', url, instance.endpoint());
+	    if( debug ) console.info('[tinyget] new branch', instance.endpoint());
 	    return instance;
 	  };
 	  
@@ -2076,6 +2120,37 @@ return /******/ (function(modules) { // webpackBootstrap
 	    if( typeof type !== 'string' ) throw new TypeError('hook type must be a string:' + type);
 	    if( typeof fn !== 'function' ) throw new TypeError('hook fn must be a function:' + fn);
 	    tinyget.hooks[type] = fn;
+	    return this;
+	  };
+	  
+	  tinyget.profile = function(name, fn) {
+	    if( !profiles[name] ) return console.error('[tinyget] undefined profile', name);
+	    profiles[name](tinyget);
+	    if( typeof fn === 'function' ) fn(tinyget);
+	    return this;
+	  };
+	  
+	  tinyget.rest = function(fn) {
+	    tinyget.profile('rest', fn);
+	    return this;
+	  };
+	  
+	  var defheaders;
+	  tinyget.header = function(key, value) {
+	    if( arguments.length <= 1 ) return defheaders[key];
+	    defheaders = defheaders || {};
+	    defheaders[key] = value;
+	    return this;
+	  };
+	  
+	  tinyget.headers = function(o, reset) {
+	    if( !arguments.length ) return defheaders;
+	    if( typeof o !== 'object' ) return console.error('[tinyget] illegal arguments', o);
+	    
+	    if( reset ) defheaders = {};
+	    else defheaders = defheaders || {};
+	    
+	    for(var k in o) defheaders[k] = o[k];
 	    return this;
 	  };
 	  
@@ -2616,6 +2691,30 @@ return /******/ (function(modules) { // webpackBootstrap
 	    resume: resume,
 	    active: active
 	  }
+	};
+
+/***/ },
+/* 12 */
+/***/ function(module, exports) {
+
+	module.exports = function(conn) {
+	  conn.hook('callback', function(result, done) {
+	    var err = result.error || null;
+	    var data = result.data || null;
+	    var res = result.response || null;
+	  
+	    if( err && data && data.error ) {
+	      err = new Error(data.message);
+	      for(var k in data) err[k] = data[k];
+	    }
+	  
+	    done(err, data, res);
+	  })
+	  .hook('before', function(options, done) {
+	    options.credentials = true;
+	    options.headers = options.headers || {};
+	    done(null, options);
+	  });
 	};
 
 /***/ }
