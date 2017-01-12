@@ -2036,7 +2036,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	                    else if( contentType && ~contentType.indexOf('/html') )
 	                      data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
 	                    else if( contentType && ~contentType.indexOf('/json') )
-	                      data = JSON.parse(text);
+	                      data = (text && JSON.parse(text)) || null;
 	                    else
 	                      data = text;
 	                  }
