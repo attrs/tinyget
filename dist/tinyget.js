@@ -2017,17 +2017,16 @@ return /******/ (function(modules) { // webpackBootstrap
 	                  var resheaders = response.headers = response.headers || {};
 	                  for(var k in resheaders) resheaders[k.toLowerCase()] = resheaders[k];
 	                  
-	                  var contentType = resheaders['content-type'] || o.responseType;
+	                  var contentType = resheaders['content-type'] || o.type || o.contentType;
+	                  var responseType = o.responseType;
 	                  
-	                  if( o.type ) {
-	                    if( o.type === 'document' ) {
+	                  if( responseType ) {
+	                    if( responseType === 'document' ) {
 	                      data = ( !xml || typeof xml === 'string' ) ? impl.toDocument(xml || text) : xml;
-	                    } else if( o.type === 'xml' ) {
+	                    } else if( responseType === 'xml' ) {
 	                      data = ( !xml || typeof xml === 'string' ) ? impl.toXml(xml || text) : xml;
-	                    } else if( o.type === 'json' ) {
-	                      data = JSON.parse(text);
-	                    } else if( o.type === 'text' ) {
-	                      data = text;
+	                    } else if( responseType === 'json' ) {
+	                      data = xml || JSON.parse(text);
 	                    } else {
 	                      data = xml || text;
 	                    }
@@ -2705,15 +2704,17 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var err = result.error || null;
 	    var data = result.data || null;
 	    var res = result.response || null;
-	  
+	    
 	    if( err && data && data.error ) {
 	      err = new Error(data.message);
 	      for(var k in data) err[k] = data[k];
 	    }
-	  
+	    
 	    done(err, data, res);
 	  })
 	  .hook('before', function(options, done) {
+	    options.type = 'application/json';
+	    options.xdr = true;
 	    options.credentials = true;
 	    options.headers = options.headers || {};
 	    done(null, options);
