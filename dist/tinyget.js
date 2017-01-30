@@ -1985,7 +1985,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	            } else if( !o.contentType && typeof o.payload === 'object' ) {
 	              o.contentType = 'application/json';
 	              o.payload = JSON.stringify(o.payload);
-	            } else if( !co.ontentType && typeof o.payload === 'string' ) {
+	            } else if( !o.ontentType && typeof o.payload === 'string' ) {
 	              o.contentType = 'application/x-www-form-urlencoded';
 	            }
 	          }
@@ -2089,6 +2089,12 @@ return /******/ (function(modules) { // webpackBootstrap
 	  var _endpoint;
 	  tinyget.branchendpoint = function(ep) {
 	    return _endpoint;
+	  };
+	  
+	  tinyget.resolve = function(url) {
+	    var parentendpoint = tinyget.endpoint();
+	    var endpoint = (url && (~url.indexOf('://') ? url : URL.resolve(parentendpoint, url))) || parentendpoint;
+	    return (endpoint[endpoint.length - 1] !== '/') ? (endpoint + '/') : endpoint;
 	  };
 	  
 	  tinyget.endpoint = function(ep) {
