@@ -1930,6 +1930,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	          o.cache = o.cache === false ? false : true;
 	          o.credentials = (o.credentials || o.withCredentials) === false ? false : true;
 	          o.endpoint = tinyget.endpoint();
+	          o.headers = o.headers || {};
 	          
 	          if( typeof o.url === 'function' ) o.url = o.url.call(chain, tinyget, chain);
 	          if( typeof o.method === 'function' ) o.method = o.method.call(chain, tinyget, chain);
@@ -1943,7 +1944,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	          
 	          var dh = defheaders;
 	          if( dh ) {
-	            o.headers = o.headers || {};
 	            for(var k in dh) {
 	              if( !(k in o.headers) && !isempty(dh[k]) ) o.headers[k] = dh[k];
 	            }
@@ -1951,7 +1951,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	          
 	          dh = parent && parent.headers();
 	          if( dh ) {
-	            o.headers = o.headers || {};
 	            for(var k in defheaders) {
 	              if( !(k in o.headers) && !isempty(dh[k]) ) o.headers[k] = dh[k];
 	            }
