@@ -868,7 +868,7 @@ base.impl.connector = function(options, done) {
   var method = options.method;
   var payload = options.payload;
   var sync = options.sync;
-  var credentials = options.credentials;
+  var credentials = options.credentials || options.withCredentials;
   var headers = options.headers;
   var responseType = options.responseType;
   var onprogress = options.onprogress;
@@ -890,14 +890,16 @@ base.impl.connector = function(options, done) {
     xd.onload = function(e) {
       done(null, {
         status: 200,
-        text: xd.responseText
+        text: xd.responseText,
+        data: xd.responseText
       });
     };
     
     xd.onerror = function(e) {
       done(new Error('[tinyget] ajax error(' + xd.status + ') ' + method + ' "' + url + '"'), {
         status: 500,
-        text: xd.responseText
+        text: xd.responseText,
+        data: xd.responseText
       });
     };
     
@@ -1423,6 +1425,8 @@ function Tinyget(parent) {
                       data = (text && JSON.parse(text)) || null;
                     else
                       data = text;
+                  } else {
+                    data = xml || text;
                   }
                   
                   fireevents && events.fire('load', {response:response, data:data});
