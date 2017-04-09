@@ -1,22 +1,4 @@
-/*!
-* tinyget
-* https://github.com/attrs/tinyget
-*
-* Copyright attrs and others
-* Released under the MIT license
-* https://github.com/attrs/tinyget/blob/master/LICENSE
-*/
-(function webpackUniversalModuleDefinition(root, factory) {
-	if(typeof exports === 'object' && typeof module === 'object')
-		module.exports = factory();
-	else if(typeof define === 'function' && define.amd)
-		define("Tinyget", [], factory);
-	else if(typeof exports === 'object')
-		exports["Tinyget"] = factory();
-	else
-		root["Tinyget"] = factory();
-})(this, function() {
-return /******/ (function(modules) { // webpackBootstrap
+/******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
 /******/
@@ -89,6 +71,17 @@ return /******/ (function(modules) { // webpackBootstrap
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
+
+
+exports.decode = exports.parse = __webpack_require__(10);
+exports.encode = exports.stringify = __webpack_require__(11);
+
+
+/***/ }),
+/* 1 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -112,8 +105,8 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 
-var punycode = __webpack_require__(7);
-var util = __webpack_require__(10);
+var punycode = __webpack_require__(9);
+var util = __webpack_require__(12);
 
 exports.parse = urlParse;
 exports.resolve = urlResolve;
@@ -188,7 +181,7 @@ var protocolPattern = /^([a-z0-9.+-]+:)/i,
       'gopher:': true,
       'file:': true
     },
-    querystring = __webpack_require__(1);
+    querystring = __webpack_require__(0);
 
 function urlParse(url, parseQueryString, slashesDenoteHost) {
   if (url && util.isObject(url) && url instanceof Url) return url;
@@ -824,28 +817,280 @@ Url.prototype.parseHost = function() {
 
 
 /***/ }),
-/* 1 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-exports.decode = exports.parse = __webpack_require__(8);
-exports.encode = exports.stringify = __webpack_require__(9);
-
-
-/***/ }),
 /* 2 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var URL = __webpack_require__(0);
-var querystring = __webpack_require__(1);
-var path = __webpack_require__(6);
-var Events = __webpack_require__(4);
+var URL = __webpack_require__(1);
+var base = __webpack_require__(4);
+
+/**
+ * XmlHttpRequest's getAllResponseHeaders() method returns a string of response
+ * headers according to the format described here:
+ * http://www.w3.org/TR/XMLHttpRequest/#the-getallresponseheaders-method
+ * This method parses that string into a user-friendly key/value pair object.
+ * https://gist.github.com/mmazer/5404301
+ */
+function parseResponseHeaders(headerStr) {
+  var headers = {};
+  if (!headerStr) {
+    return headers;
+  }
+  
+  var headerPairs = headerStr.split('\u000d\u000a');
+  for (var i = 0, len = headerPairs.length; i < len; i++) {
+    var headerPair = headerPairs[i];
+    var index = headerPair.indexOf('\u003a\u0020');
+    if (index > 0) {
+      var key = headerPair.substring(0, index);
+      var val = headerPair.substring(index + 2);
+      
+      key = key && key.split('\r').join('').split('\n').join('');
+      val = val && val.split('\r').join('').split('\n').join('');
+      headers[key] = val;
+    }
+  }
+  
+  return headers;
+}
+
+function createResponse(xhr) {
+  return {
+    status: xhr.status,
+    headers: parseResponseHeaders(xhr.getAllResponseHeaders()),
+    text: xhr.responseText,
+    data: xhr.response || xhr.responseXML
+  };
+}
+
+base.impl.connector = function(options, done) {
+  var finished = false;
+  var url = options.url;
+  var method = options.method;
+  var payload = options.payload;
+  var sync = options.sync;
+  var credentials = options.credentials;
+  var headers = options.headers;
+  var responseType = options.responseType;
+  var onprogress = options.onprogress;
+  var xdr = options.xdr;
+  var crossdomain = (function() {
+    if( url && ~url.indexOf('://') ) {
+      var parsed = URL.parse(url);
+      if( parsed.hostname && parsed.hostname !== document.domain ) return true;
+    }
+    
+    return false;
+  })();
+  
+  if( crossdomain && xdr && window.XDomainRequest ) {
+    if( !window.XDomainRequest ) return done(new Error('browser does not support CORS ajax request'));
+    
+    var xd = new XDomainRequest();
+    
+    xd.onload = function(e) {
+      done(null, {
+        status: 200,
+        text: xd.responseText
+      });
+    };
+    
+    xd.onerror = function(e) {
+      done(new Error('[tinyget] ajax error(' + xd.status + ') ' + method + ' "' + url + '"'), {
+        status: 500,
+        text: xd.responseText
+      });
+    };
+    
+    xd.onprogress = function(e) {
+      onprogress && onprogress.call(xd, e);
+    };
+    
+    xd.ontimeout = function(e) {
+      done(new Error('[tinyget] ajax error(timeout) ' + method + ' "' + url + '"'), {
+        status: 500
+      });
+    };
+    
+    xd.open(method, url);
+    
+    for(var key in headers ) {
+      console.warn('[tinyget] XDomainRequest cannot set request header, header ignored ', key, headers[key]);
+    }
+    
+    if( responseType ) xd.responseType = responseType;
+    if( payload ) xd.send(payload);
+    else xd.send();
+    
+    return;
+  }
+  
+  
+  var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
+  
+  if( onprogress ) {
+    if( xhr.upload ) {
+      xhr.upload.addEventListener('progress', function(e) {
+        onprogress.call(xhr, e);
+      }, false);
+    } else {
+      console.warn('[tinyget] browser does not support upload progress.');
+    }
+  }
+  
+  if( 'onload' in xhr ) {
+    xhr.onload = function(e) {
+      done(null, createResponse(xhr));
+    };
+    
+    xhr.onerror = function(e) {
+      done(new Error('[tinyget] ajax error(' + xhr.status + ') ' + method + ' "' + url + '"'), createResponse(xhr));
+    };
+  } else {
+    xhr.onreadystatechange = function(e) {
+      if( xhr.readyState == 4 ) {
+        done(null, createResponse(xhr));
+      }
+    };
+  }
+  
+  xhr.onprogress = function(e) {
+    onprogress && onprogress.call(xhr, e);
+  };
+  
+  xhr.onabort = function(e) {
+    done(new Error('[tinyget] ajax error(aborted) ' + method + ' "' + url + '"'), createResponse(xhr));
+  };
+  
+  xhr.ontimeout = function(e) {
+    done(new Error('[tinyget] ajax error(timeout) ' + method + ' "' + url + '"'), createResponse(xhr));
+  };
+  
+  xhr.open(method, url, !sync);
+  xhr.withCredentials = credentials ? true : false;
+  
+  for(var key in headers ) 
+    xhr.setRequestHeader(key, headers[key]);
+  
+  if( responseType ) xhr.responseType = responseType;
+  if( payload ) xhr.send(payload);
+  else xhr.send();
+};
+
+base.impl.toXml = function(text) {
+  return new DOMParser().parseFromString(text, 'text/xml');
+};
+
+base.impl.toDocument = function(text) {
+  return new DOMParser().parseFromString(text, 'text/html');
+};
+
+module.exports = base;
+
+/***/ }),
+/* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var conn = __webpack_require__(2)
+.endpoint('/data')
+.hook('before', function(options, done) {
+  console.log('before', options);
+  done(null, options);
+})
+.hook('callback', function(result, done) {
+  var err = result.error;
+  var data = result.data;
+  var res = result.response;
+  
+  console.log('callback', result);
+  
+  done(err, data, res);
+});
+
+// #1
+conn('/data.json').qry({key: 'value'}).exec(function(err, result) {
+  if( err ) return console.log('#1', err.stack);
+  console.log('#1', typeof result);
+});
+
+// #2
+conn({
+  url: '/data.text',
+  payload: {key:'value'}
+}).exec(function(err, result) {
+  if( err ) return console.log('#2', err.stack);
+  console.log('#2', typeof result);
+});
+
+// #3
+conn({
+  url: '/data.xml',
+  qry: {a:'b'},
+  payload: {key:'value'}
+}, function(err, result) {
+  if( err ) return console.log('#3', err.stack);
+  console.log('#3', typeof result);
+});
+
+// #4
+conn('/data.json').type('text').exec(function(err, result) {
+  if( err ) return console.log('#4', err.stack);
+  console.log('#4', typeof result);
+});
+
+// #5
+conn('/data.json').type('json').exec(function(err, result) {
+  if( err ) return console.log('#5', err.stack);
+  console.log('#5', typeof result);
+});
+
+// #6
+conn('/data.xml').type('text').exec(function(err, result) {
+  if( err ) return console.log('#6', err.stack);
+  console.log('#6', typeof result);
+});
+
+// #7
+conn('/data.text').type('json').exec(function(err, result) {
+  if( err ) return console.log('#7', err.stack);
+  console.log('#7', typeof result);
+});
+
+// #8
+conn('/data.html').exec(function(err, result) {
+  if( err ) return console.log('#8', err.stack);
+  console.log('#8', typeof result);
+});
+
+// #9
+conn('/data.html').type('document').exec(function(err, result) {
+  if( err ) return console.log('#9', err.stack);
+  console.log('#9', typeof result);
+});
+
+// #10
+conn('/data.html').type('text').exec(function(err, result) {
+  if( err ) return console.log('#10', err.stack);
+  console.log('#10', typeof result);
+});
+
+// #11
+conn('/data.html').type('json').exec(function(err, result) {
+  if( err ) return console.log('#11', err.stack);
+  console.log('#11', typeof result);
+});
+
+/***/ }),
+/* 4 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var URL = __webpack_require__(1);
+var querystring = __webpack_require__(0);
+var path = __webpack_require__(7);
+var Events = __webpack_require__(5);
 var debug = false;
 var impl = {};
 var profiles = {
-  'rest': __webpack_require__(5)
+  'rest': __webpack_require__(6)
 };
 
 var DEFAULT_HOOKS = {
@@ -1355,177 +1600,7 @@ tinyget.impl = impl;
 module.exports = tinyget;
 
 /***/ }),
-/* 3 */
-/***/ (function(module, exports, __webpack_require__) {
-
-var URL = __webpack_require__(0);
-var base = __webpack_require__(2);
-
-/**
- * XmlHttpRequest's getAllResponseHeaders() method returns a string of response
- * headers according to the format described here:
- * http://www.w3.org/TR/XMLHttpRequest/#the-getallresponseheaders-method
- * This method parses that string into a user-friendly key/value pair object.
- * https://gist.github.com/mmazer/5404301
- */
-function parseResponseHeaders(headerStr) {
-  var headers = {};
-  if (!headerStr) {
-    return headers;
-  }
-  
-  var headerPairs = headerStr.split('\u000d\u000a');
-  for (var i = 0, len = headerPairs.length; i < len; i++) {
-    var headerPair = headerPairs[i];
-    var index = headerPair.indexOf('\u003a\u0020');
-    if (index > 0) {
-      var key = headerPair.substring(0, index);
-      var val = headerPair.substring(index + 2);
-      
-      key = key && key.split('\r').join('').split('\n').join('');
-      val = val && val.split('\r').join('').split('\n').join('');
-      headers[key] = val;
-    }
-  }
-  
-  return headers;
-}
-
-function createResponse(xhr) {
-  return {
-    status: xhr.status,
-    headers: parseResponseHeaders(xhr.getAllResponseHeaders()),
-    text: xhr.responseText,
-    data: xhr.response || xhr.responseXML
-  };
-}
-
-base.impl.connector = function(options, done) {
-  var finished = false;
-  var url = options.url;
-  var method = options.method;
-  var payload = options.payload;
-  var sync = options.sync;
-  var credentials = options.credentials;
-  var headers = options.headers;
-  var responseType = options.responseType;
-  var onprogress = options.onprogress;
-  var xdr = options.xdr;
-  var crossdomain = (function() {
-    if( url && ~url.indexOf('://') ) {
-      var parsed = URL.parse(url);
-      if( parsed.hostname && parsed.hostname !== document.domain ) return true;
-    }
-    
-    return false;
-  })();
-  
-  if( crossdomain && xdr && window.XDomainRequest ) {
-    if( !window.XDomainRequest ) return done(new Error('browser does not support CORS ajax request'));
-    
-    var xd = new XDomainRequest();
-    
-    xd.onload = function(e) {
-      done(null, {
-        status: 200,
-        text: xd.responseText
-      });
-    };
-    
-    xd.onerror = function(e) {
-      done(new Error('[tinyget] ajax error(' + xd.status + ') ' + method + ' "' + url + '"'), {
-        status: 500,
-        text: xd.responseText
-      });
-    };
-    
-    xd.onprogress = function(e) {
-      onprogress && onprogress.call(xd, e);
-    };
-    
-    xd.ontimeout = function(e) {
-      done(new Error('[tinyget] ajax error(timeout) ' + method + ' "' + url + '"'), {
-        status: 500
-      });
-    };
-    
-    xd.open(method, url);
-    
-    for(var key in headers ) {
-      console.warn('[tinyget] XDomainRequest cannot set request header, header ignored ', key, headers[key]);
-    }
-    
-    if( responseType ) xd.responseType = responseType;
-    if( payload ) xd.send(payload);
-    else xd.send();
-    
-    return;
-  }
-  
-  
-  var xhr = window.XMLHttpRequest ? new XMLHttpRequest() : new ActiveXObject("Microsoft.XMLHTTP");
-  
-  if( onprogress ) {
-    if( xhr.upload ) {
-      xhr.upload.addEventListener('progress', function(e) {
-        onprogress.call(xhr, e);
-      }, false);
-    } else {
-      console.warn('[tinyget] browser does not support upload progress.');
-    }
-  }
-  
-  if( 'onload' in xhr ) {
-    xhr.onload = function(e) {
-      done(null, createResponse(xhr));
-    };
-    
-    xhr.onerror = function(e) {
-      done(new Error('[tinyget] ajax error(' + xhr.status + ') ' + method + ' "' + url + '"'), createResponse(xhr));
-    };
-  } else {
-    xhr.onreadystatechange = function(e) {
-      if( xhr.readyState == 4 ) {
-        done(null, createResponse(xhr));
-      }
-    };
-  }
-  
-  xhr.onprogress = function(e) {
-    onprogress && onprogress.call(xhr, e);
-  };
-  
-  xhr.onabort = function(e) {
-    done(new Error('[tinyget] ajax error(aborted) ' + method + ' "' + url + '"'), createResponse(xhr));
-  };
-  
-  xhr.ontimeout = function(e) {
-    done(new Error('[tinyget] ajax error(timeout) ' + method + ' "' + url + '"'), createResponse(xhr));
-  };
-  
-  xhr.open(method, url, !sync);
-  xhr.withCredentials = credentials ? true : false;
-  
-  for(var key in headers ) 
-    xhr.setRequestHeader(key, headers[key]);
-  
-  if( responseType ) xhr.responseType = responseType;
-  if( payload ) xhr.send(payload);
-  else xhr.send();
-};
-
-base.impl.toXml = function(text) {
-  return new DOMParser().parseFromString(text, 'text/xml');
-};
-
-base.impl.toDocument = function(text) {
-  return new DOMParser().parseFromString(text, 'text/html');
-};
-
-module.exports = base;
-
-/***/ }),
-/* 4 */
+/* 5 */
 /***/ (function(module, exports) {
 
 module.exports = function() {
@@ -1583,7 +1658,7 @@ module.exports = function() {
 };
 
 /***/ }),
-/* 5 */
+/* 6 */
 /***/ (function(module, exports) {
 
 module.exports = function(conn) {
@@ -1609,10 +1684,10 @@ module.exports = function(conn) {
 };
 
 /***/ }),
-/* 6 */
-/***/ (function(module, exports) {
+/* 7 */
+/***/ (function(module, exports, __webpack_require__) {
 
-// Copyright Joyent, Inc. and other Node contributors.
+/* WEBPACK VAR INJECTION */(function(process) {// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the
@@ -1837,12 +1912,199 @@ var substr = 'ab'.substr(-1) === 'b'
     }
 ;
 
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(8)))
 
 /***/ }),
-/* 7 */
+/* 8 */
+/***/ (function(module, exports) {
+
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+
+/***/ }),
+/* 9 */
 /***/ (function(module, exports, __webpack_require__) {
 
-/* WEBPACK VAR INJECTION */(function(module) {var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/punycode v1.4.1 by @mathias */
+/* WEBPACK VAR INJECTION */(function(module, global) {var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/punycode v1.4.1 by @mathias */
 ;(function(root) {
 
 	/** Detect free variables */
@@ -2375,10 +2637,10 @@ var substr = 'ab'.substr(-1) === 'b'
 
 }(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(11)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(14)(module), __webpack_require__(13)))
 
 /***/ }),
-/* 8 */
+/* 10 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2469,7 +2731,7 @@ var isArray = Array.isArray || function (xs) {
 
 
 /***/ }),
-/* 9 */
+/* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2561,7 +2823,7 @@ var objectKeys = Object.keys || function (obj) {
 
 
 /***/ }),
-/* 10 */
+/* 12 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2584,7 +2846,34 @@ module.exports = {
 
 
 /***/ }),
-/* 11 */
+/* 13 */
+/***/ (function(module, exports) {
+
+var g;
+
+// This works in non-strict mode
+g = (function() {
+	return this;
+})();
+
+try {
+	// This works if eval is allowed (see CSP)
+	g = g || Function("return this")() || (1,eval)("this");
+} catch(e) {
+	// This works if the window reference is available
+	if(typeof window === "object")
+		g = window;
+}
+
+// g can still be undefined, but nothing to do about it...
+// We return undefined, instead of nothing here, so it's
+// easier to handle this case. if(!global) { ...}
+
+module.exports = g;
+
+
+/***/ }),
+/* 14 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
@@ -2613,5 +2902,4 @@ module.exports = function(module) {
 
 /***/ })
 /******/ ]);
-});
-//# sourceMappingURL=tinyget.js.map
+//# sourceMappingURL=app.js.map

@@ -7,6 +7,10 @@
   "repository": "attrs/tinyget",
   "author": "joje <joje.attrs@gmail.com>",
   "homepage": "https://github.com/attrs/tinyget",
+  "scripts": {
+    "docs": "node node_modules/webmodules/bin/wpm.js up docs -s",
+    "build": "gulp build"
+  },
   "license": "MIT",
   "dependencies": {
     "jsdom": "^8.5.0",
@@ -15,13 +19,13 @@
   },
   "devDependencies": {
     "gulp": "^3.9.1",
-    "gulp-header": "^1.8.3",
+    "gulp-header": "^1.8.8",
     "gulp-rename": "^1.2.2",
-    "gulp-rimraf": "^0.2.0",
-    "gulp-uglify": "^1.5.3",
-    "gulp-util": "^3.0.7",
-    "webpack": "^1.13.1",
-    "webpack-stream": "^3.2.0"
+    "gulp-rimraf": "^0.2.1",
+    "gulp-uglify": "^2.1.2",
+    "gulp-util": "^3.0.8",
+    "webmodules": "^0.1.46",
+    "webpack": "^2.3.3"
   },
   "files": [
     "bin",
@@ -32,11 +36,6 @@
     "README.md"
   ],
   "keywords": [
-    "browserify",
-    "webmodules",
-    "ajax",
-    "request",
-    "http",
-    "client"
+    "ajax"
   ]
 }

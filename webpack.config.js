@@ -1,3 +1,4 @@
+var fs = require('fs');
 var path = require('path');
 var webpack = require('webpack');
 
@@ -10,5 +11,13 @@ module.exports = {
     libraryTarget: 'umd',
     umdNamedDefine: true
   },
+  node: {
+    console: false,
+    global: false,
+    process: false,
+    Buffer: false,
+    setImmediate: false
+  },
   devtool: 'source-map'
 };
+
