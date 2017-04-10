@@ -1,11 +1,3 @@
-/*!
-* tinyget
-* https://github.com/attrs/tinyget
-*
-* Copyright attrs and others
-* Released under the MIT license
-* https://github.com/attrs/tinyget/blob/master/LICENSE
-*/
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
 		module.exports = factory();
@@ -1614,7 +1606,7 @@ module.exports = function(conn) {
     done(err, data, res);
   })
   .hook('before', function(options, done) {
-    options.type = 'application/json';
+    options.type = 'json';
     options.xdr = true;
     options.credentials = true;
     options.headers = options.headers || {};
