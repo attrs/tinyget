@@ -8,6 +8,7 @@
   "author": "joje <joje.attrs@gmail.com>",
   "homepage": "https://github.com/attrs/tinyget",
   "scripts": {
+    "prepublish": "gulp",
     "docs": "node node_modules/webmodules/bin/wpm.js up docs -s",
     "build": "gulp build"
   },
