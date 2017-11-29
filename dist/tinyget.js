@@ -1,3 +1,11 @@
+/*!
+* tinyget
+* https://github.com/attrs/tinyget
+*
+* Copyright attrs and others
+* Released under the MIT license
+* https://github.com/attrs/tinyget/blob/master/LICENSE
+*/
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
 		module.exports = factory();
@@ -840,6 +848,16 @@ var profiles = {
   'rest': __webpack_require__(5)
 };
 
+var hasFormData = false;
+try {
+  hasFormData = 'FormData' in window;
+} catch(err) {}
+try {
+  hasFormData = 'FormData' in global;
+} catch(err) {}
+
+
+
 var DEFAULT_HOOKS = {
   before: function(options, done) {
     done(null, options);
@@ -1096,7 +1114,7 @@ function Tinyget(parent) {
           }
           
           if( o.payload ) {
-            if( 'FormData' in window && o.payload instanceof FormData ) {
+            if( hasFormData && o.payload instanceof FormData ) {
               o.payload = o.payload;
             } else if( o.contentType && ~o.contentType.indexOf('json') ) {
               o.payload = typeof o.payload === 'object' ? JSON.stringify(o.payload) : o.payload.toString();

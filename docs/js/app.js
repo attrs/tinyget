@@ -63,7 +63,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 3);
+/******/ 	return __webpack_require__(__webpack_require__.s = 4);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -73,8 +73,8 @@
 "use strict";
 
 
-exports.decode = exports.parse = __webpack_require__(10);
-exports.encode = exports.stringify = __webpack_require__(11);
+exports.decode = exports.parse = __webpack_require__(11);
+exports.encode = exports.stringify = __webpack_require__(12);
 
 
 /***/ }),
@@ -105,8 +105,8 @@ exports.encode = exports.stringify = __webpack_require__(11);
 
 
 
-var punycode = __webpack_require__(9);
-var util = __webpack_require__(12);
+var punycode = __webpack_require__(10);
+var util = __webpack_require__(13);
 
 exports.parse = urlParse;
 exports.resolve = urlResolve;
@@ -818,10 +818,37 @@ Url.prototype.parseHost = function() {
 
 /***/ }),
 /* 2 */
+/***/ (function(module, exports) {
+
+var g;
+
+// This works in non-strict mode
+g = (function() {
+	return this;
+})();
+
+try {
+	// This works if eval is allowed (see CSP)
+	g = g || Function("return this")() || (1,eval)("this");
+} catch(e) {
+	// This works if the window reference is available
+	if(typeof window === "object")
+		g = window;
+}
+
+// g can still be undefined, but nothing to do about it...
+// We return undefined, instead of nothing here, so it's
+// easier to handle this case. if(!global) { ...}
+
+module.exports = g;
+
+
+/***/ }),
+/* 3 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var URL = __webpack_require__(1);
-var base = __webpack_require__(4);
+var base = __webpack_require__(5);
 
 /**
  * XmlHttpRequest's getAllResponseHeaders() method returns a string of response
@@ -989,10 +1016,10 @@ base.impl.toDocument = function(text) {
 module.exports = base;
 
 /***/ }),
-/* 3 */
+/* 4 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var conn = __webpack_require__(2)
+var conn = __webpack_require__(3)
 .endpoint('/data')
 .hook('before', function(options, done) {
   //console.log('before', options);
@@ -1083,18 +1110,28 @@ conn('/data.html').type('json').exec(function(err, result) {
 });
 
 /***/ }),
-/* 4 */
+/* 5 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var URL = __webpack_require__(1);
+/* WEBPACK VAR INJECTION */(function(global) {var URL = __webpack_require__(1);
 var querystring = __webpack_require__(0);
-var path = __webpack_require__(7);
-var Events = __webpack_require__(5);
+var path = __webpack_require__(8);
+var Events = __webpack_require__(6);
 var debug = false;
 var impl = {};
 var profiles = {
-  'rest': __webpack_require__(6)
+  'rest': __webpack_require__(7)
 };
+
+var hasFormData = false;
+try {
+  hasFormData = 'FormData' in window;
+} catch(err) {}
+try {
+  hasFormData = 'FormData' in global;
+} catch(err) {}
+
+
 
 var DEFAULT_HOOKS = {
   before: function(options, done) {
@@ -1352,7 +1389,7 @@ function Tinyget(parent) {
           }
           
           if( o.payload ) {
-            if( 'FormData' in window && o.payload instanceof FormData ) {
+            if( hasFormData && o.payload instanceof FormData ) {
               o.payload = o.payload;
             } else if( o.contentType && ~o.contentType.indexOf('json') ) {
               o.payload = typeof o.payload === 'object' ? JSON.stringify(o.payload) : o.payload.toString();
@@ -1613,9 +1650,10 @@ tinyget.Tinyget = Tinyget;
 tinyget.impl = impl;
 
 module.exports = tinyget;
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(2)))
 
 /***/ }),
-/* 5 */
+/* 6 */
 /***/ (function(module, exports) {
 
 module.exports = function() {
@@ -1673,7 +1711,7 @@ module.exports = function() {
 };
 
 /***/ }),
-/* 6 */
+/* 7 */
 /***/ (function(module, exports) {
 
 module.exports = function(conn) {
@@ -1690,7 +1728,7 @@ module.exports = function(conn) {
     done(err, data, res);
   })
   .hook('before', function(options, done) {
-    options.type = 'application/json';
+    options.type = 'json';
     options.xdr = true;
     options.credentials = true;
     options.headers = options.headers || {};
@@ -1699,7 +1737,7 @@ module.exports = function(conn) {
 };
 
 /***/ }),
-/* 7 */
+/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(process) {// Copyright Joyent, Inc. and other Node contributors.
@@ -1927,10 +1965,10 @@ var substr = 'ab'.substr(-1) === 'b'
     }
 ;
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(8)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(9)))
 
 /***/ }),
-/* 8 */
+/* 9 */
 /***/ (function(module, exports) {
 
 // shim for using process in browser
@@ -2116,7 +2154,7 @@ process.umask = function() { return 0; };
 
 
 /***/ }),
-/* 9 */
+/* 10 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(module, global) {var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/punycode v1.4.1 by @mathias */
@@ -2652,10 +2690,10 @@ process.umask = function() { return 0; };
 
 }(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(14)(module), __webpack_require__(13)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(14)(module), __webpack_require__(2)))
 
 /***/ }),
-/* 10 */
+/* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2746,7 +2784,7 @@ var isArray = Array.isArray || function (xs) {
 
 
 /***/ }),
-/* 11 */
+/* 12 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2838,7 +2876,7 @@ var objectKeys = Object.keys || function (obj) {
 
 
 /***/ }),
-/* 12 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2858,33 +2896,6 @@ module.exports = {
     return arg == null;
   }
 };
-
-
-/***/ }),
-/* 13 */
-/***/ (function(module, exports) {
-
-var g;
-
-// This works in non-strict mode
-g = (function() {
-	return this;
-})();
-
-try {
-	// This works if eval is allowed (see CSP)
-	g = g || Function("return this")() || (1,eval)("this");
-} catch(e) {
-	// This works if the window reference is available
-	if(typeof window === "object")
-		g = window;
-}
-
-// g can still be undefined, but nothing to do about it...
-// We return undefined, instead of nothing here, so it's
-// easier to handle this case. if(!global) { ...}
-
-module.exports = g;
 
 
 /***/ }),

@@ -848,6 +848,16 @@ var profiles = {
   'rest': __webpack_require__(5)
 };
 
+var hasFormData = false;
+try {
+  hasFormData = 'FormData' in window;
+} catch(err) {}
+try {
+  hasFormData = 'FormData' in global;
+} catch(err) {}
+
+
+
 var DEFAULT_HOOKS = {
   before: function(options, done) {
     done(null, options);
@@ -1104,7 +1114,7 @@ function Tinyget(parent) {
           }
           
           if( o.payload ) {
-            if( 'FormData' in window && o.payload instanceof FormData ) {
+            if( hasFormData && o.payload instanceof FormData ) {
               o.payload = o.payload;
             } else if( o.contentType && ~o.contentType.indexOf('json') ) {
               o.payload = typeof o.payload === 'object' ? JSON.stringify(o.payload) : o.payload.toString();
@@ -1614,7 +1624,7 @@ module.exports = function(conn) {
     done(err, data, res);
   })
   .hook('before', function(options, done) {
-    options.type = 'application/json';
+    options.type = 'json';
     options.xdr = true;
     options.credentials = true;
     options.headers = options.headers || {};
