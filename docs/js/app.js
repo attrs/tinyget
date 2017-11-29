@@ -68,6 +68,33 @@
 /************************************************************************/
 /******/ ([
 /* 0 */
+/***/ (function(module, exports) {
+
+var g;
+
+// This works in non-strict mode
+g = (function() {
+	return this;
+})();
+
+try {
+	// This works if eval is allowed (see CSP)
+	g = g || Function("return this")() || (1,eval)("this");
+} catch(e) {
+	// This works if the window reference is available
+	if(typeof window === "object")
+		g = window;
+}
+
+// g can still be undefined, but nothing to do about it...
+// We return undefined, instead of nothing here, so it's
+// easier to handle this case. if(!global) { ...}
+
+module.exports = g;
+
+
+/***/ }),
+/* 1 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -78,7 +105,7 @@ exports.encode = exports.stringify = __webpack_require__(12);
 
 
 /***/ }),
-/* 1 */
+/* 2 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -181,7 +208,7 @@ var protocolPattern = /^([a-z0-9.+-]+:)/i,
       'gopher:': true,
       'file:': true
     },
-    querystring = __webpack_require__(0);
+    querystring = __webpack_require__(1);
 
 function urlParse(url, parseQueryString, slashesDenoteHost) {
   if (url && util.isObject(url) && url instanceof Url) return url;
@@ -817,37 +844,10 @@ Url.prototype.parseHost = function() {
 
 
 /***/ }),
-/* 2 */
-/***/ (function(module, exports) {
-
-var g;
-
-// This works in non-strict mode
-g = (function() {
-	return this;
-})();
-
-try {
-	// This works if eval is allowed (see CSP)
-	g = g || Function("return this")() || (1,eval)("this");
-} catch(e) {
-	// This works if the window reference is available
-	if(typeof window === "object")
-		g = window;
-}
-
-// g can still be undefined, but nothing to do about it...
-// We return undefined, instead of nothing here, so it's
-// easier to handle this case. if(!global) { ...}
-
-module.exports = g;
-
-
-/***/ }),
 /* 3 */
 /***/ (function(module, exports, __webpack_require__) {
 
-var URL = __webpack_require__(1);
+var URL = __webpack_require__(2);
 var base = __webpack_require__(5);
 
 /**
@@ -1113,8 +1113,8 @@ conn('/data.html').type('json').exec(function(err, result) {
 /* 5 */
 /***/ (function(module, exports, __webpack_require__) {
 
-/* WEBPACK VAR INJECTION */(function(global) {var URL = __webpack_require__(1);
-var querystring = __webpack_require__(0);
+/* WEBPACK VAR INJECTION */(function(global) {var URL = __webpack_require__(2);
+var querystring = __webpack_require__(1);
 var path = __webpack_require__(8);
 var Events = __webpack_require__(6);
 var debug = false;
@@ -1650,7 +1650,7 @@ tinyget.Tinyget = Tinyget;
 tinyget.impl = impl;
 
 module.exports = tinyget;
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(2)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0)))
 
 /***/ }),
 /* 6 */
@@ -1712,7 +1712,12 @@ module.exports = function() {
 
 /***/ }),
 /* 7 */
-/***/ (function(module, exports) {
+/***/ (function(module, exports, __webpack_require__) {
+
+/* WEBPACK VAR INJECTION */(function(global) {var isie = (function() {
+  var ua = global.navigator && navigator.userAgent || '';
+  return ~ua.indexOf('Trident') || ~ua.indexOf("msie") ? true : false;
+})();
 
 module.exports = function(conn) {
   conn.hook('callback', function(result, done) {
@@ -1732,9 +1737,11 @@ module.exports = function(conn) {
     options.xdr = true;
     options.credentials = true;
     options.headers = options.headers || {};
+    if( isie ) options.cache = false;
     done(null, options);
   });
 };
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0)))
 
 /***/ }),
 /* 8 */
@@ -2690,7 +2697,7 @@ process.umask = function() { return 0; };
 
 }(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(14)(module), __webpack_require__(2)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(14)(module), __webpack_require__(0)))
 
 /***/ }),
 /* 11 */

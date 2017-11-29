@@ -1610,6 +1610,11 @@ module.exports = function() {
 /* 5 */
 /***/ (function(module, exports) {
 
+var isie = (function() {
+  var ua = global.navigator && navigator.userAgent || '';
+  return ~ua.indexOf('Trident') || ~ua.indexOf("msie") ? true : false;
+})();
+
 module.exports = function(conn) {
   conn.hook('callback', function(result, done) {
     var err = result.error || null;
@@ -1628,6 +1633,7 @@ module.exports = function(conn) {
     options.xdr = true;
     options.credentials = true;
     options.headers = options.headers || {};
+    if( isie ) options.cache = false;
     done(null, options);
   });
 };
