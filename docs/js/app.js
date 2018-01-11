@@ -1757,8 +1757,6 @@ module.exports = function(connector, options, done) {
     waitings: [done]
   };
   
-  console.log('url', url);
-  
   connector.connector(options, function(err, response) {
     if( err ) delete cache[url];
     
