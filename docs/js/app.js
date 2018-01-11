@@ -100,8 +100,8 @@ module.exports = g;
 "use strict";
 
 
-exports.decode = exports.parse = __webpack_require__(11);
-exports.encode = exports.stringify = __webpack_require__(12);
+exports.decode = exports.parse = __webpack_require__(12);
+exports.encode = exports.stringify = __webpack_require__(13);
 
 
 /***/ }),
@@ -132,8 +132,8 @@ exports.encode = exports.stringify = __webpack_require__(12);
 
 
 
-var punycode = __webpack_require__(10);
-var util = __webpack_require__(13);
+var punycode = __webpack_require__(11);
+var util = __webpack_require__(14);
 
 exports.parse = urlParse;
 exports.resolve = urlResolve;
@@ -1115,12 +1115,13 @@ conn('/data.html').type('json').exec(function(err, result) {
 
 /* WEBPACK VAR INJECTION */(function(global) {var URL = __webpack_require__(2);
 var querystring = __webpack_require__(1);
-var path = __webpack_require__(8);
+var path = __webpack_require__(9);
 var Events = __webpack_require__(6);
+var lcc = __webpack_require__(7);
 var debug = false;
 var impl = {};
 var profiles = {
-  'rest': __webpack_require__(7)
+  'rest': __webpack_require__(8)
 };
 
 var hasFormData = false;
@@ -1234,6 +1235,11 @@ function Tinyget(parent) {
         if( typeof b === 'boolean' ) options.cache = b;
         return this;
       },
+      localcache: function(b) {
+        if( !arguments.length ) return options.localcache;
+        options.localcache = b;
+        return this;
+      },
       sync: function(sync) {
         if( !arguments.length ) return options.sync;
         if( typeof b === 'boolean' ) options.sync = sync;
@@ -1342,6 +1348,7 @@ function Tinyget(parent) {
           o.payload = o.payload || o.body;
           o.sync = o.sync === true ? true : false;
           o.cache = o.cache === false ? false : true;
+          o.localcache = o.localcache === true ? 10000 : (+o.localcache || 0);
           o.credentials = (o.credentials || o.withCredentials) === false ? false : true;
           o.endpoint = tinyget.endpoint();
           o.headers = o.headers || {};
@@ -1369,7 +1376,6 @@ function Tinyget(parent) {
               if( !(k in o.headers) && !isempty(dh[k]) ) o.headers[k] = dh[k];
             }
           }
-          
           
           if( !o.url ) return done(new Error('missing url'));
           if( typeof o.url !== 'string' ) return fn(new Error('url must be a string: ' + typeof o.url));
@@ -1413,7 +1419,7 @@ function Tinyget(parent) {
             options: o
           });
           
-          impl.connector(o, function(err, response) {
+          function processresponse(err, response) {
             if( !err && (response.status < 200 || response.status >= 300) )
               err = new Error('[tinyget] error status(' + response.status + '): ' + o.method + ' "' + o.url + '"');
             
@@ -1491,7 +1497,17 @@ function Tinyget(parent) {
               error: err,
               response: response
             }, processing);
-          });
+          }
+          
+          if( o.localcache ) {
+            lcc(impl, o, function(err, response) {
+              processresponse(err, response);
+            });
+          } else {
+            impl.connector(o, function(err, response) {
+              processresponse(err, response);
+            });
+          }
         }
         
         hooks.before.call(chain, options, function(err, options) {
@@ -1712,6 +1728,52 @@ module.exports = function() {
 
 /***/ }),
 /* 7 */
+/***/ (function(module, exports) {
+
+var cache = {};
+
+module.exports = function(connector, options, done) {
+  var cachetime = +options.localcache;
+  if( !cachetime ) return connector.connector(options, done);
+  
+  var url = options.url;
+  var cacheitem = cache[url];
+  
+  if( cacheitem ) {
+    var time = (new Date().getTime() - cacheitem.ts);
+    if( time >= cachetime ) {
+      cacheitem = null;
+      delete cache[url];
+    }
+  }
+  
+  if( cacheitem ) {
+    if( cacheitem.response ) return done(null, cacheitem.response);
+    return cacheitem.waitings.push(done);
+  }
+  
+  cache[url] = cacheitem = {
+    ts: new Date().getTime(),
+    waitings: [done]
+  };
+  
+  console.log('url', url);
+  
+  connector.connector(options, function(err, response) {
+    if( err ) delete cache[url];
+    
+    var fns = cacheitem.waitings;
+    cacheitem.response = response;
+    delete cacheitem.waitings;
+    
+    fns && fns.forEach(function(fn) {
+      fn(err, response);
+    });
+  });
+};
+
+/***/ }),
+/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(global) {var isie = (function() {
@@ -1744,7 +1806,7 @@ module.exports = function(conn) {
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(0)))
 
 /***/ }),
-/* 8 */
+/* 9 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(process) {// Copyright Joyent, Inc. and other Node contributors.
@@ -1972,10 +2034,10 @@ var substr = 'ab'.substr(-1) === 'b'
     }
 ;
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(9)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(10)))
 
 /***/ }),
-/* 9 */
+/* 10 */
 /***/ (function(module, exports) {
 
 // shim for using process in browser
@@ -2161,7 +2223,7 @@ process.umask = function() { return 0; };
 
 
 /***/ }),
-/* 10 */
+/* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(module, global) {var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/punycode v1.4.1 by @mathias */
@@ -2697,10 +2759,10 @@ process.umask = function() { return 0; };
 
 }(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(14)(module), __webpack_require__(0)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(15)(module), __webpack_require__(0)))
 
 /***/ }),
-/* 11 */
+/* 12 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2791,7 +2853,7 @@ var isArray = Array.isArray || function (xs) {
 
 
 /***/ }),
-/* 12 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2883,7 +2945,7 @@ var objectKeys = Object.keys || function (obj) {
 
 
 /***/ }),
-/* 13 */
+/* 14 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2906,7 +2968,7 @@ module.exports = {
 
 
 /***/ }),
-/* 14 */
+/* 15 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {

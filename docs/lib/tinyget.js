@@ -112,8 +112,8 @@ return /******/ (function(modules) { // webpackBootstrap
 
 
 
-var punycode = __webpack_require__(7);
-var util = __webpack_require__(10);
+var punycode = __webpack_require__(8);
+var util = __webpack_require__(11);
 
 exports.parse = urlParse;
 exports.resolve = urlResolve;
@@ -830,8 +830,8 @@ Url.prototype.parseHost = function() {
 "use strict";
 
 
-exports.decode = exports.parse = __webpack_require__(8);
-exports.encode = exports.stringify = __webpack_require__(9);
+exports.decode = exports.parse = __webpack_require__(9);
+exports.encode = exports.stringify = __webpack_require__(10);
 
 
 /***/ }),
@@ -840,12 +840,13 @@ exports.encode = exports.stringify = __webpack_require__(9);
 
 var URL = __webpack_require__(0);
 var querystring = __webpack_require__(1);
-var path = __webpack_require__(6);
+var path = __webpack_require__(7);
 var Events = __webpack_require__(4);
+var lcc = __webpack_require__(5);
 var debug = false;
 var impl = {};
 var profiles = {
-  'rest': __webpack_require__(5)
+  'rest': __webpack_require__(6)
 };
 
 var hasFormData = false;
@@ -959,6 +960,11 @@ function Tinyget(parent) {
         if( typeof b === 'boolean' ) options.cache = b;
         return this;
       },
+      localcache: function(b) {
+        if( !arguments.length ) return options.localcache;
+        options.localcache = b;
+        return this;
+      },
       sync: function(sync) {
         if( !arguments.length ) return options.sync;
         if( typeof b === 'boolean' ) options.sync = sync;
@@ -1067,6 +1073,7 @@ function Tinyget(parent) {
           o.payload = o.payload || o.body;
           o.sync = o.sync === true ? true : false;
           o.cache = o.cache === false ? false : true;
+          o.localcache = o.localcache === true ? 10000 : (+o.localcache || 0);
           o.credentials = (o.credentials || o.withCredentials) === false ? false : true;
           o.endpoint = tinyget.endpoint();
           o.headers = o.headers || {};
@@ -1094,7 +1101,6 @@ function Tinyget(parent) {
               if( !(k in o.headers) && !isempty(dh[k]) ) o.headers[k] = dh[k];
             }
           }
-          
           
           if( !o.url ) return done(new Error('missing url'));
           if( typeof o.url !== 'string' ) return fn(new Error('url must be a string: ' + typeof o.url));
@@ -1138,7 +1144,7 @@ function Tinyget(parent) {
             options: o
           });
           
-          impl.connector(o, function(err, response) {
+          function processresponse(err, response) {
             if( !err && (response.status < 200 || response.status >= 300) )
               err = new Error('[tinyget] error status(' + response.status + '): ' + o.method + ' "' + o.url + '"');
             
@@ -1216,7 +1222,17 @@ function Tinyget(parent) {
               error: err,
               response: response
             }, processing);
-          });
+          }
+          
+          if( o.localcache ) {
+            lcc(impl, o, function(err, response) {
+              processresponse(err, response);
+            });
+          } else {
+            impl.connector(o, function(err, response) {
+              processresponse(err, response);
+            });
+          }
         }
         
         hooks.before.call(chain, options, function(err, options) {
@@ -1610,6 +1626,52 @@ module.exports = function() {
 /* 5 */
 /***/ (function(module, exports) {
 
+var cache = {};
+
+module.exports = function(connector, options, done) {
+  var cachetime = +options.localcache;
+  if( !cachetime ) return connector.connector(options, done);
+  
+  var url = options.url;
+  var cacheitem = cache[url];
+  
+  if( cacheitem ) {
+    var time = (new Date().getTime() - cacheitem.ts);
+    if( time >= cachetime ) {
+      cacheitem = null;
+      delete cache[url];
+    }
+  }
+  
+  if( cacheitem ) {
+    if( cacheitem.response ) return done(null, cacheitem.response);
+    return cacheitem.waitings.push(done);
+  }
+  
+  cache[url] = cacheitem = {
+    ts: new Date().getTime(),
+    waitings: [done]
+  };
+  
+  console.log('url', url);
+  
+  connector.connector(options, function(err, response) {
+    if( err ) delete cache[url];
+    
+    var fns = cacheitem.waitings;
+    cacheitem.response = response;
+    delete cacheitem.waitings;
+    
+    fns && fns.forEach(function(fn) {
+      fn(err, response);
+    });
+  });
+};
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports) {
+
 var isie = (function() {
   var ua = global.navigator && navigator.userAgent || '';
   return ~ua.indexOf('Trident') || ~ua.indexOf("msie") ? true : false;
@@ -1639,7 +1701,7 @@ module.exports = function(conn) {
 };
 
 /***/ }),
-/* 6 */
+/* 7 */
 /***/ (function(module, exports) {
 
 // Copyright Joyent, Inc. and other Node contributors.
@@ -1869,7 +1931,7 @@ var substr = 'ab'.substr(-1) === 'b'
 
 
 /***/ }),
-/* 7 */
+/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(module) {var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/punycode v1.4.1 by @mathias */
@@ -2405,10 +2467,10 @@ var substr = 'ab'.substr(-1) === 'b'
 
 }(this));
 
-/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(11)(module)))
+/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(12)(module)))
 
 /***/ }),
-/* 8 */
+/* 9 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2499,7 +2561,7 @@ var isArray = Array.isArray || function (xs) {
 
 
 /***/ }),
-/* 9 */
+/* 10 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2591,7 +2653,7 @@ var objectKeys = Object.keys || function (obj) {
 
 
 /***/ }),
-/* 10 */
+/* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -2614,7 +2676,7 @@ module.exports = {
 
 
 /***/ }),
-/* 11 */
+/* 12 */
 /***/ (function(module, exports) {
 
 module.exports = function(module) {
