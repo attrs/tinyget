@@ -6,9 +6,9 @@
 /******/ 	function __webpack_require__(moduleId) {
 /******/
 /******/ 		// Check if module is in cache
-/******/ 		if(installedModules[moduleId])
+/******/ 		if(installedModules[moduleId]) {
 /******/ 			return installedModules[moduleId].exports;
-/******/
+/******/ 		}
 /******/ 		// Create a new module (and put it into the cache)
 /******/ 		var module = installedModules[moduleId] = {
 /******/ 			i: moduleId,
@@ -908,10 +908,13 @@ base.impl.connector = function(options, done) {
     
     return false;
   })();
+
+  if( options.cache === false ) {
+    if( ~url.indexOf('?') ) url = url + '&_ts=' + (new Date()).getTime();
+    else url = url + '?_ts=' + (new Date()).getTime();
+  }
   
-  if( crossdomain && xdr && window.XDomainRequest ) {
-    if( !window.XDomainRequest ) return done(new Error('browser does not support CORS ajax request'));
-    
+  if( (crossdomain || xdr) && window.XDomainRequest ) {
     var xd = new XDomainRequest();
     
     xd.onload = function(e) {
@@ -942,9 +945,9 @@ base.impl.connector = function(options, done) {
     
     xd.open(method, url);
     
-    for(var key in headers ) {
+    /*for(var key in headers ) {
       console.warn('[tinyget] XDomainRequest cannot set request header, header ignored ', key, headers[key]);
-    }
+    }*/
     
     if( responseType ) xd.responseType = responseType;
     if( payload ) xd.send(payload);
@@ -1387,11 +1390,6 @@ function Tinyget(parent) {
               if( ~o.url.indexOf('?') ) o.url = o.url + '&' + o.qry;
               else o.url = o.url + '?' + o.qry;
             }
-          }
-          
-          if( !o.cache ) {
-            if( ~o.url.indexOf('?') ) o.url = o.url + '&_ts=' + (new Date()).getTime();
-            else o.url = o.url + '?_ts=' + (new Date()).getTime();
           }
           
           if( o.payload ) {
@@ -2208,6 +2206,10 @@ process.off = noop;
 process.removeListener = noop;
 process.removeAllListeners = noop;
 process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
 
 process.binding = function (name) {
     throw new Error('process.binding is not supported');
